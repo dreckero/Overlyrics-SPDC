@@ -17,47 +17,60 @@ import tkinter.font as font
 import os
 import webbrowser
 from spotify import *
+import queue
+
+# Global queue to handle Tkinter updates in the main thread
+update_queue = queue.Queue()
 
 # Constants:
-VERBOSE_MODE = False # If true, prints specific logs in the code (for debugging)
-CUSTOM_EXCEPT_HOOK = True # If active, errors appear in customized window
-
-PERIOD_TO_UPDATE_TRACK_INFO = 0.1 # Updates the displaying verses every PERIOD_TO_UPDATE_TRACK_INFO seconds
+VERBOSE_MODE = False  # If true, prints specific logs in the code (for debugging)
+CUSTOM_EXCEPT_HOOK = True  # If active, errors appear in customized window
+DISPLAY_OFFSET_MS = 200
+TRANSPARENCY = 0.7
+PERIOD_TO_UPDATE_TRACK_INFO = 0.1  # Updates the displaying verses every PERIOD_TO_UPDATE_TRACK_INFO seconds
 
 def create_overlay_text():
     # Main window = root
     root = tk.Tk()
     root.attributes("-topmost", True)
+    root.attributes("-alpha", TRANSPARENCY)
     root.overrideredirect(True)
-
     root.configure(bg="#010311")
-    
     root.title("Overlyrics")
     root.iconbitmap(default="icons/overlyrics-icon.ico")
+    root.wm_attributes('-transparentcolor', root['bg'])
 
     try:  # Try to load the custom font
         custom_font = font.Font(family="Public Sans", size="22", weight="normal")
     except tk.TclError:
         custom_font = font.Font(family="Arial", size="22", weight="normal")
 
-    # Adding the icon on the left of the main window
-    image = tk.PhotoImage(file="icons/gray-icon.png")
-    image_label = tk.Label(root, image=image, bg="#010311", highlightbackground="#010311")
-    image_label.pack(side=tk.LEFT)  
+    # Initial texts (while authentication is performed)
+    text1 = tk.Label(root, text="Starting...", font=custom_font, fg="#dfe0eb", bg="#010311")
+    text1.pack()
+    text2 = tk.Label(root, text="", font=custom_font, fg="#dfe0eb", bg="#010311")
+    text2.pack()
+    text3 = tk.Label(root, text="", font=custom_font, fg="#dfe0eb", bg="#010311")
+    text3.pack()
 
-    # Initial text (while authentication is performed)
-    text = tk.Label(root, text="Starting...", font=custom_font, fg="#dfe0eb", bg="#010311")
-    text.pack(expand=True)
+    # Create a small white square at the top left
+    square = tk.Label(root, width=1, height=1, bg="white")
+    square.place(x=0, y=0)
+
+    # Function to toggle transparency on hover
+    # def toggle_transparency(event):
+    #     if root.attributes("-alpha") == 1.0:
+    #         root.attributes("-alpha", TRANSPARENCY)
+    #     else:
+    #         root.attributes("-alpha", 1.0)
 
     # Sets the transparency of the window when clicking, based on the operating system
-    if root.tk.call("tk", "windowingsystem") == "win32":
-        # For Windows, we use the -alpha attribute
-        root.attributes("-alpha", 1.0)  # 1.0 = fully opaque
-        root.bind("<Enter>", lambda event: root.attributes("-alpha", 0.1))  # 10% opacity when hovering
-        root.bind("<Leave>", lambda event: root.attributes("-alpha", 1.0))
+    # if root.tk.call("tk", "windowingsystem") == "win32":
+    #     root.attributes("-alpha", TRANSPARENCY)  # 1.0 = fully opaque
+    #     root.bind("<Enter>", lambda event: root.attributes("-alpha", 0.1))  # 10% opacity when hovering
+    #     root.bind("<Leave>", lambda event: root.attributes("-alpha", TRANSPARENCY))
 
-    elif root.tk.call("tk", "windowingsystem") == "aqua":
-        # For macOS, we use the attribute -transparentcolor
+    if root.tk.call("tk", "windowingsystem") == "aqua":
         root.attributes("-transparentcolor", "#010311")  # NOTE: not tested
 
     # Allows to drag the window:
@@ -77,37 +90,78 @@ def create_overlay_text():
     root.bind("<ButtonPress-1>", on_drag_start)
     root.bind("<B1-Motion>", on_dragging)
 
-    return root, text, image
+    def on_right_clicked(event):
+        global selected_theme, main_color
+        if selected_theme == "DARK":
+            selected_theme = "WHITE"
+            overlay_text1.config(fg="#333333")
+            overlay_text2.config(fg=main_color)
+            overlay_text3.config(fg="#333333")
+            overlay_root.update()
+        else:
+            selected_theme = "DARK"
+            overlay_text1.config(fg="#dfe0eb")
+            overlay_text2.config(fg=main_color)
+            overlay_text3.config(fg="#dfe0eb")
+            overlay_root.update()
+        
+    root.bind("<ButtonPress-3>", on_right_clicked)
+
+    return root, text1, text2, text3, square
+
 
 def update_overlay_text():
     global actualTrackLyrics, actualVerse, parsed_lyrics, time_str, timestampsInSeconds
 
     def find_nearest_time(currentProgress, timestampsInSeconds, parsed_lyrics):
         keys_list = list(parsed_lyrics.keys())
-        filtered_keys = list(filter(lambda x: timestampsInSeconds[keys_list.index(x)] <= currentProgress, keys_list)) # verses before present time
+        # Find the verse that is closest in time before the current progress + offset
+        filtered_keys = list(filter(lambda x: timestampsInSeconds[keys_list.index(x)] <= currentProgress + (DISPLAY_OFFSET_MS / 1000), keys_list))
 
-        if not filtered_keys: # condition where there are no previous verses
-            verse = keys_list[0] # returns the first verse
+        if not filtered_keys:
+            verse = keys_list[0]  # If no previous verse, show the first one
         else:
-            verse = max(filtered_keys, key=lambda x: timestampsInSeconds[keys_list.index(x)]) # returns the verse closest to the current time
+            verse = max(filtered_keys, key=lambda x: timestampsInSeconds[keys_list.index(x)])  # Show the closest previous verse
         return verse
 
-    print("Entered into update_overlay_text()") if VERBOSE_MODE else None    
-
-    if(parsing_in_progress_event.is_set()): # Does not update the overlay if parsing is still being done
+    if parsing_in_progress_event.is_set():
         return
-
-    elif(time_str == "TypeError" or time_str == [] or parsed_lyrics == {}):
-        print("Lyrics file error.") if VERBOSE_MODE else None
-        nolyricsfound()
-        return
+    elif time_str == "TypeError" or time_str == [] or parsed_lyrics == {}:
+        update_queue.put(("", actualVerse, ""))
     else:
-        # Finds the section of the letter closest to the current time
-        #print (parsed_lyrics)
-        currentLyricTime = find_nearest_time(currentProgress, timestampsInSeconds, parsed_lyrics) ## format: HH:MM:SS 
+        currentLyricTime = find_nearest_time(currentProgress, timestampsInSeconds, parsed_lyrics)
         actualVerse = parsed_lyrics[currentLyricTime]
-        #print(actualVerse)
+
+        keys_list = list(parsed_lyrics.keys())
+        current_index = keys_list.index(currentLyricTime)
+        previous_verse = parsed_lyrics[keys_list[current_index - 1]] if current_index > 0 else ""
+        next_verse = parsed_lyrics[keys_list[current_index + 1]] if current_index < len(keys_list) - 1 else ""
+
         lyrics_verse_event.set()
+
+        # print(f"Queueing update: {previous_verse}, {actualVerse}, {next_verse}")
+        update_queue.put((previous_verse, actualVerse, next_verse))
+
+
+def update_gui_texts(previous_verse, actualVerse, next_verse):
+    global main_color
+    
+    print(f"Updating GUI: {previous_verse}, {actualVerse}, {next_verse}") if VERBOSE_MODE else None
+    overlay_text1.config(text=previous_verse)
+    overlay_text2.config(text=actualVerse, fg=main_color)
+    overlay_text3.config(text=next_verse)
+    overlay_root.update()
+
+
+def process_queue():
+    try:
+        while True:
+            previous_verse, actualVerse, next_verse = update_queue.get_nowait()
+            update_gui_texts(previous_verse, actualVerse, next_verse)
+    except queue.Empty:
+        pass
+    overlay_root.after(100, process_queue)  # Check the queue every 100 ms
+
 
 def getCurrentTrackInfo():
     current_track = sp.current_user_playing_track() # Get the information of the music being listened to, through the API
@@ -290,13 +344,6 @@ def spotipyAutenthication():
         authWindow.geometry(alignstr)
         authWindow.resizable(width=False, height=False)
 
-        # Loading logo
-        logo_path = "imgs/main-logo-png.png"
-        logo_img = tk.PhotoImage(file=logo_path).subsample(6)
-        # Displays the logo at the center
-        logo_label = tk.Label(authWindow, image=logo_img)
-        logo_label.pack(pady=0)
-
         #>>> LABELS:
         # Code Entry
         codeEntry=ttk.Entry(authWindow)
@@ -349,7 +396,7 @@ def spotipyAutenthication():
         
         return access_token
 
-    authManager = spotipy.oauth2.SpotifyPKCE(client_id="b8b25b07b616497b86b1ce40bd2ef2c6", 
+    authManager = spotipy.oauth2.SpotifyPKCE(client_id="b20f0802c77540a0963048cc394ec998", 
                                 redirect_uri="https://cezargab.github.io/Overlyrics", 
                                 scope="user-read-playback-state",
                                 cache_handler= spotipy.CacheFileHandler(".cache_sp"),
@@ -399,9 +446,13 @@ parsed_lyrics = {}
 time_str = ""
 timestampsInSeconds = []
 
+# Themes
+selected_theme = "DARK"
+main_color = "#00FFFF"
+
 sp = spotipyAutenthication()
 
-overlay_root, overlay_text, overlay_image = create_overlay_text()
+overlay_root, overlay_text1, overlay_text2, overlay_text3, overlay_square = create_overlay_text()
 overlay_root.update()
 
 update_event = threading.Event() # Create an event to flag the variables update
@@ -410,19 +461,15 @@ lyrics_verse_event = threading.Event() # Create an event to flag the verse updat
 parsing_in_progress_event = threading.Event() # Create an event to flag the parsing in progress
 
 # Updates the track infos in a separated thread, every PERIOD_TO_UPDATE_TRACK_INFO seconds
-update_thread = threading.Thread(target=update_track_info) 
+update_thread = threading.Thread(target=update_track_info)
 update_thread.start()
 
 # Updates the main window continuously, in a separate thread
 update_display_thread = threading.Thread(target=update_display)
 update_display_thread.start()
 
+# Start processing the queue in the main loop
+overlay_root.after(100, process_queue)
 
-while True:
-    lyrics_verse_event.wait() # Wait for the next verse to updates the main window
-    
-    # Updates the main window
-    overlay_text.config(text=actualVerse)
-    overlay_root.update()
-
-    lyrics_verse_event.clear()
+# Start the Tkinter main loop
+overlay_root.mainloop()

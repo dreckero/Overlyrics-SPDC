@@ -43,6 +43,6 @@ def format_lrc_local(lyrics_json, track_data):
                 lrc.append(f'[{minutes:0>2.0f}:{seconds:05.2f}] {lines["words"]}')
         return '\n'.join(lrc)
     except Exception as e: 
-        return e
+        return None
 
 #GetLyricsOfId("5KIYVXGdws1ZhZYNJHo0st")
