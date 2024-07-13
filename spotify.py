@@ -3,7 +3,7 @@ from syrics.core import *
 
 token_url = "https://open.spotify.com/get_access_token?reason=transport&productType=web_player"
 lyrics_url = "https://spclient.wg.spotify.com/color-lyrics/v2/track/"
-sp_dc = "SPOTIFY_COOKIE_HERE"
+sp_dc = "AQAOIqFgI9r5hEV2p3p_o4K4TGvXqrIvbYBfn9CYpQKWVkIkX1lai-i-3Iicbhr0X8lgVvmOAcWIPT9cmW9nycTJUzVwK4qCk9w4MdY6dTAIcDB6YRvkwgZCFCUrk335mJGbRG_xP70zQsSmNiOuI_9G1D-Op3na"
 
 sp = Spotify(sp_dc)
 
