@@ -234,7 +234,7 @@ def display_lyrics(trackName, artistName, currentProgress, isPaused):
             #lyrics = syncedlyrics.search(searchTerm)
             lyrics = GetLyricsOfCurrentSong()
             #print(lyrics)
-            if (lyrics is None or lyrics.isspace()):
+            if (lyrics is None):
                 print("Track not found.") if VERBOSE_MODE else None
                 nolyricsfound()
             else:
