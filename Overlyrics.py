@@ -18,105 +18,218 @@ import os
 import webbrowser
 from spotify import *
 import queue
+from tkinter import simpledialog
 
 # Global queue to handle Tkinter updates in the main thread
 update_queue = queue.Queue()
 
+# Mian global variables
+
+#----------------
+selected_theme = "LIGHT" # Default selected theme
+selected_main_color = "MAGENTA" # Default selected main color
+light_color = "#BBBBBB" # Default selected color for light theme
+dark_color = "#404040" # Default selected color for dark theme
+main_color = "#FF00FF" # Default selected color for the actual verse that is playing
+#----------------
+
+lines_per_lyrics = 3 # Lines to show per lyrics (make sure that is always an odd number and not more than 15 or it'll be 3 as default)
+transparency = 1.0 # Default transparency for the whole windows
+custom_font = ""
+display_offset_ms = 200 # Offset in milliseconds to show the actual lyrics
+
 # Constants:
 VERBOSE_MODE = False  # If true, prints specific logs in the code (for debugging)
 CUSTOM_EXCEPT_HOOK = True  # If active, errors appear in customized window
-DISPLAY_OFFSET_MS = 200
-TRANSPARENCY = 0.7
 PERIOD_TO_UPDATE_TRACK_INFO = 0.1  # Updates the displaying verses every PERIOD_TO_UPDATE_TRACK_INFO seconds
 
 def create_overlay_text():
-    # Main window = root
+    global main_color, selected_theme, lines_per_lyrics, custom_font
+    
+    if lines_per_lyrics not in [1, 3, 5, 7, 9, 11, 13, 15]:
+        lines_per_lyrics = 3
+    
     root = tk.Tk()
     root.attributes("-topmost", True)
-    root.attributes("-alpha", TRANSPARENCY)
+    root.attributes("-alpha", transparency)
     root.overrideredirect(True)
     root.configure(bg="#010311")
     root.title("Overlyrics")
     root.iconbitmap(default="icons/overlyrics-icon.ico")
     root.wm_attributes('-transparentcolor', root['bg'])
 
-    try:  # Try to load the custom font
-        custom_font = font.Font(family="Public Sans", size="22", weight="normal")
+    try:
+        custom_font = font.Font(family="Public Sans", size=22, weight="normal")
     except tk.TclError:
-        custom_font = font.Font(family="Arial", size="22", weight="normal")
+        custom_font = font.Font(family="Arial", size=22, weight="normal")
 
-    # Initial texts (while authentication is performed)
-    text1 = tk.Label(root, text="Starting...", font=custom_font, fg="#dfe0eb", bg="#010311")
-    text1.pack()
-    text2 = tk.Label(root, text="", font=custom_font, fg="#dfe0eb", bg="#010311")
-    text2.pack()
-    text3 = tk.Label(root, text="", font=custom_font, fg="#dfe0eb", bg="#010311")
-    text3.pack()
+    custom_bar_font = font.Font(family="Arial", size="8", weight="normal")
+    upper_bar = tk.Label(root, text="", font=custom_bar_font, fg="#dfe0eb", bg="#010311")
+    upper_bar.pack()
+    
+    # Create labels dynamically based on lines_per_lyric
+    text_labels = []
+    middle_index = lines_per_lyrics // 2  # Calculate middle index
+    
+    for i in range(lines_per_lyrics):
+        fg_color = main_color if i == middle_index else "#dfe0eb"
+        text_label = tk.Label(root, text="", font=custom_font, fg=fg_color, bg="#010311")
+        text_label.pack()
+        text_labels.append(text_label)
+    
+    canvas2 = tk.Canvas(root, width=20, height=15, bg="#AAAAAA", highlightthickness=0) #width=root.winfo_screenwidth()
+    canvas2.place(x=0, y=0)
 
-    # Create a small white square at the top left
-    square = tk.Label(root, width=1, height=1, bg="white")
-    square.place(x=0, y=0)
-
-    # Function to toggle transparency on hover
-    # def toggle_transparency(event):
-    #     if root.attributes("-alpha") == 1.0:
-    #         root.attributes("-alpha", TRANSPARENCY)
-    #     else:
-    #         root.attributes("-alpha", 1.0)
-
-    # Sets the transparency of the window when clicking, based on the operating system
-    # if root.tk.call("tk", "windowingsystem") == "win32":
-    #     root.attributes("-alpha", TRANSPARENCY)  # 1.0 = fully opaque
-    #     root.bind("<Enter>", lambda event: root.attributes("-alpha", 0.1))  # 10% opacity when hovering
-    #     root.bind("<Leave>", lambda event: root.attributes("-alpha", TRANSPARENCY))
-
-    if root.tk.call("tk", "windowingsystem") == "aqua":
-        root.attributes("-transparentcolor", "#010311")  # NOTE: not tested
-
-    # Allows to drag the window:
-    drag_start_x = 0
-    drag_start_y = 0
-
-    def on_drag_start(event):
-        nonlocal drag_start_x, drag_start_y
-        drag_start_x = event.x
-        drag_start_y = event.y
-
-    def on_dragging(event):
-        root_x = root.winfo_x() + (event.x - drag_start_x)
-        root_y = root.winfo_y() + (event.y - drag_start_y)
-        root.geometry(f"+{root_x}+{root_y}")
-
+    # Dragging functionality
+    
+    
     root.bind("<ButtonPress-1>", on_drag_start)
     root.bind("<B1-Motion>", on_dragging)
+    root.bind("<Button-3>", on_right_click)
+    
+    return root, text_labels
 
-    def on_right_clicked(event):
-        global selected_theme, main_color
-        if selected_theme == "DARK":
-            selected_theme = "WHITE"
-            overlay_text1.config(fg="#333333")
-            overlay_text2.config(fg=main_color)
-            overlay_text3.config(fg="#333333")
-            overlay_root.update()
-        else:
-            selected_theme = "DARK"
-            overlay_text1.config(fg="#dfe0eb")
-            overlay_text2.config(fg=main_color)
-            overlay_text3.config(fg="#dfe0eb")
-            overlay_root.update()
+# -------------------------------------
+# Menu functions
+# -------------------------------------
+
+def on_right_click(event):
+    global selected_theme, main_color, overlay_root
+    menu = tk.Menu(overlay_root, tearoff=0)
+    
+    if selected_main_color == "MAGENTA":
+        menu.add_command(label="Cyan", command=switch_main_color_cyan)
+    else:
+        menu.add_command(label="Magenta", command=switch_main_color_magenta)
         
-    root.bind("<ButtonPress-3>", on_right_clicked)
+    if selected_theme == "DARK":
+        menu.add_command(label="Light Theme", command=switch_to_light_theme)
+    else:
+        menu.add_command(label="Dark Theme", command=switch_to_dark_theme)
+    
+    menu.add_command(label="Set Font Size", command=change_font_size)
+    menu.add_command(label="Set lyrics offset", command=change_display_offset_ms)
+    menu.add_command(label="Set transparency", command=change_transparency)
+    menu.add_command(label="Set lines per lyrics", command=change_lines_per_lyrics)
+    
+    menu.post(event.x_root, event.y_root)
 
-    return root, text1, text2, text3, square
+def switch_to_light_theme():
+    global selected_theme, overlay_root, overlay_text_labels, main_color, light_color
+    selected_theme = "LIGHT"
+    middle_index = len(overlay_text_labels) // 2
+    for i, label in enumerate(overlay_text_labels):
+        if i != middle_index:
+            label.config(fg=light_color)
+        else:
+            label.config(fg=main_color)
+            
+    overlay_root.update()
 
+def switch_to_dark_theme():
+    global selected_theme, overlay_root, overlay_text_labels, main_color, dark_color
+    selected_theme = "DARK"
+    middle_index = len(overlay_text_labels) // 2
+    for i, label in enumerate(overlay_text_labels):
+        if i != middle_index:
+            label.config(fg=dark_color)
+        else:
+            label.config(fg=main_color)
+    overlay_root.update()
+
+def on_drag_start(event):
+    global drag_start_x, drag_start_y
+    drag_start_x = event.x
+    drag_start_y = event.y
+
+def on_dragging(event):
+    global drag_start_x, drag_start_y, overlay_root
+    root_x = overlay_root.winfo_x() + (event.x - drag_start_x)
+    root_y = overlay_root.winfo_y() + (event.y - drag_start_y)
+    overlay_root.geometry(f"+{root_x}+{root_y}")
+    
+def switch_main_color_cyan():
+    global main_color, overlay_text_labels, selected_main_color
+    selected_main_color = "CYAN"
+    main_color = "#00FFFF"
+    middle_index = len(overlay_text_labels) // 2
+    for i, label in enumerate(overlay_text_labels):
+        if i == middle_index:
+            label.config(fg=main_color)
+    overlay_root.update()
+
+def switch_main_color_magenta():
+    global main_color, overlay_text_labels, selected_main_color
+    selected_main_color = "MAGENTA"
+    main_color = "#FF00FF"
+    middle_index = len(overlay_text_labels) // 2
+    for i, label in enumerate(overlay_text_labels):
+        if i == middle_index:
+            label.config(fg=main_color)
+    overlay_root.update()
+
+def open_integer_input(text, min, max):
+    value = simpledialog.askinteger(" ", text, minvalue=min, maxvalue=max)
+    return value
+
+def open_float_input(text, min, max):
+    value = simpledialog.askfloat(" ", text, minvalue=min, maxvalue=max)
+    return value
+
+def change_font_size():
+    global custom_font
+    value = open_integer_input("Enter font size:", 8, 72)
+    if value:
+        custom_font.config(size=value)
+        overlay_root.update()
+        
+def change_display_offset_ms():
+    global display_offset_ms
+    value = open_integer_input("Enter offset:", -5000, 5000)
+    if value:
+        display_offset_ms = value
+        overlay_root.update()
+        
+def change_transparency():
+    global transparency, overlay_root
+    value = open_float_input("Enter offset:", 0.1, 1.0)
+    if value:
+        transparency = value
+        overlay_root.attributes("-alpha", transparency)
+        overlay_root.update()
+        
+def change_lines_per_lyrics():
+    global lines_per_lyrics, overlay_text_labels, overlay_root
+    
+    value = open_integer_input("Enter offset:", 1, 15)
+    if value:
+        lines_per_lyrics = value
+    
+    for label in overlay_text_labels:
+        label.destroy()  # Remove existing labels
+    overlay_text_labels.clear()
+    
+    middle_index = lines_per_lyrics // 2  # Calculate middle index
+    
+    for i in range(lines_per_lyrics):
+        fg_color = main_color if i == middle_index else "#dfe0eb"
+        text_label = tk.Label(overlay_root, text="", font=custom_font, fg=fg_color, bg="#010311")
+        text_label.pack()
+        overlay_text_labels.append(text_label)
+    
+    overlay_root.update()
+
+# -------------------------------------
+# End Menu functions
+# -------------------------------------
 
 def update_overlay_text():
-    global actualTrackLyrics, actualVerse, parsed_lyrics, time_str, timestampsInSeconds
+    global actualTrackLyrics, actualVerse, parsed_lyrics, time_str, timestampsInSeconds, lines_per_lyrics
 
     def find_nearest_time(currentProgress, timestampsInSeconds, parsed_lyrics):
         keys_list = list(parsed_lyrics.keys())
         # Find the verse that is closest in time before the current progress + offset
-        filtered_keys = list(filter(lambda x: timestampsInSeconds[keys_list.index(x)] <= currentProgress + (DISPLAY_OFFSET_MS / 1000), keys_list))
+        filtered_keys = list(filter(lambda x: timestampsInSeconds[keys_list.index(x)] <= currentProgress + (display_offset_ms / 1000), keys_list))
 
         if not filtered_keys:
             verse = keys_list[0]  # If no previous verse, show the first one
@@ -127,37 +240,48 @@ def update_overlay_text():
     if parsing_in_progress_event.is_set():
         return
     elif time_str == "TypeError" or time_str == [] or parsed_lyrics == {}:
-        update_queue.put(("", actualVerse, ""))
+        update_queue.put(([""] * lines_per_lyrics, -1))  # Put empty lines for each lyric line
     else:
         currentLyricTime = find_nearest_time(currentProgress, timestampsInSeconds, parsed_lyrics)
         actualVerse = parsed_lyrics[currentLyricTime]
 
         keys_list = list(parsed_lyrics.keys())
         current_index = keys_list.index(currentLyricTime)
-        previous_verse = parsed_lyrics[keys_list[current_index - 1]] if current_index > 0 else ""
-        next_verse = parsed_lyrics[keys_list[current_index + 1]] if current_index < len(keys_list) - 1 else ""
+
+        # Prepare verses to put in the queue based on lines_per_lyric
+        previous_verses = []
+        next_verses = []
+        half_lines = lines_per_lyrics // 2
+
+        for i in range(half_lines):
+            previous_verse = parsed_lyrics[keys_list[current_index - i - 1]] if current_index - i - 1 >= 0 else ""
+            previous_verses.insert(0, previous_verse)  # Insert at the beginning to maintain order
+            next_verse = parsed_lyrics[keys_list[current_index + i + 1]] if current_index + i + 1 < len(keys_list) else ""
+            next_verses.append(next_verse)
+        
+        print(f"Previous verse: {previous_verses}\nActual verse: {actualVerse}\nNext verse: {next_verses}") if VERBOSE_MODE else None
+        
+        verses_to_queue = previous_verses + [actualVerse] + next_verses
+        update_queue.put((verses_to_queue, half_lines))
 
         lyrics_verse_event.set()
 
-        # print(f"Queueing update: {previous_verse}, {actualVerse}, {next_verse}")
-        update_queue.put((previous_verse, actualVerse, next_verse))
 
-
-def update_gui_texts(previous_verse, actualVerse, next_verse):
-    global main_color
+def update_gui_texts(verses_data):
+    global overlay_text_labels
     
-    print(f"Updating GUI: {previous_verse}, {actualVerse}, {next_verse}") if VERBOSE_MODE else None
-    overlay_text1.config(text=previous_verse)
-    overlay_text2.config(text=actualVerse, fg=main_color)
-    overlay_text3.config(text=next_verse)
+    verses, actual_index = verses_data
+    print(f"Updating GUI: {verses}") if VERBOSE_MODE else None
+    for i, verse in enumerate(verses):
+        if i < len(overlay_text_labels):
+            overlay_text_labels[i].config(text=verse)
     overlay_root.update()
-
 
 def process_queue():
     try:
         while True:
-            previous_verse, actualVerse, next_verse = update_queue.get_nowait()
-            update_gui_texts(previous_verse, actualVerse, next_verse)
+            verses = update_queue.get_nowait()
+            update_gui_texts(verses)
     except queue.Empty:
         pass
     overlay_root.after(100, process_queue)  # Check the queue every 100 ms
@@ -446,13 +570,9 @@ parsed_lyrics = {}
 time_str = ""
 timestampsInSeconds = []
 
-# Themes
-selected_theme = "DARK"
-main_color = "#00FFFF"
-
 sp = spotipyAutenthication()
 
-overlay_root, overlay_text1, overlay_text2, overlay_text3, overlay_square = create_overlay_text()
+overlay_root, overlay_text_labels = create_overlay_text()
 overlay_root.update()
 
 update_event = threading.Event() # Create an event to flag the variables update
