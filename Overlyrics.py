@@ -203,7 +203,7 @@ def change_lines_per_lyrics():
     
     value = open_integer_input("Enter offset:", 1, 15)
     if value:
-        if lines_per_lyrics not in [1, 3, 5, 7, 9, 11, 13, 15]:
+        if value not in [1, 3, 5, 7, 9, 11, 13, 15]:
             lines_per_lyrics = 3
         else:
             lines_per_lyrics = value
