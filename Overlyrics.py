@@ -294,7 +294,6 @@ def getCurrentTrackInfo():
     try:
         global sp
         current_track = sp.current_user_playing_track() # Get the information of the music being listened to, through the API
-        print(current_track)
 
         # Check if there is music playing
         if current_track is None or (current_track['item'] is None):
