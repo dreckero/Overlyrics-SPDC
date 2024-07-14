@@ -291,39 +291,46 @@ def process_queue():
 
 
 def getCurrentTrackInfo():
-    current_track = sp.current_user_playing_track() # Get the information of the music being listened to, through the API
-    
-    # Check if there is music playing
-    if current_track is None or (current_track['item'] is None):
-        return None  # No track is currently playing
-        # NOTE: When the song is changed by the search bar, current_track['item'] initially does not exist.
-        # This conditional prevents this from generating an error.
-    
-    # Extracts relevant information from the track
-    artist = current_track['item']['artists'][0]['name']
-    track_name = current_track['item']['name']
-    is_playing = current_track['is_playing']
-    progress_ms = current_track['progress_ms']
-    
-    # Convert progress_ms to minutes and seconds
-    progress_sec = progress_ms // 1000
-    progress_min = progress_sec // 60
-    progress_sec %= 60
-    
-    # Return
-    return {
-        'artist': artist,
-        'trackName': track_name,
-        'progressMin': progress_min,
-        'progressSec': progress_sec,
-        'isPlaying': is_playing
-    }
+    try:
+        global sp
+        current_track = sp.current_user_playing_track() # Get the information of the music being listened to, through the API
+        print(current_track)
+
+        # Check if there is music playing
+        if current_track is None or (current_track['item'] is None):
+            return None  # No track is currently playing
+            # NOTE: When the song is changed by the search bar, current_track['item'] initially does not exist.
+            # This conditional prevents this from generating an error.
+        
+        # Extracts relevant information from the track
+        artist = current_track['item']['artists'][0]['name']
+        track_name = current_track['item']['name']
+        is_playing = current_track['is_playing']
+        progress_ms = current_track['progress_ms']
+        
+        # Convert progress_ms to minutes and seconds
+        progress_sec = progress_ms // 1000
+        progress_min = progress_sec // 60
+        progress_sec %= 60
+        
+        # Return
+        return {
+            'artist': artist,
+            'trackName': track_name,
+            'progressMin': progress_min,
+            'progressSec': progress_sec,
+            'isPlaying': is_playing
+        }
+    except Exception as e:
+        sp = spotipyAutenthication()
+        getCurrentTrackInfo()
 
 # Function to update song information
 def update_track_info():
     while True:
         global trackName, artistName, currentProgress, isPaused 
         trackName, artistName, currentProgress, isPaused = get_track_info()
+        spotipyAutenthication()
         time.sleep(PERIOD_TO_UPDATE_TRACK_INFO)   # Wait PERIOD_TO_UPDATE_TRACK_INFO second before getting the information again
 
 # Function to get the useful song information
@@ -522,23 +529,32 @@ def spotipyAutenthication():
         access_token = authManager.get_access_token(code=auth_code, check_cache=False) #
         
         return access_token
+    
+    def UpdateAccessToken():
+        authManager = spotipy.oauth2.SpotifyPKCE(client_id="b8b25b07b616497b86b1ce40bd2ef2c6", 
+                                redirect_uri="https://cezargab.github.io/Overlyrics", 
+                                scope="user-read-playback-state",
+                                cache_handler= spotipy.CacheFileHandler(".cache_sp"),
+                                open_browser=True)
+        try: # Tries to use the cache to authenticate
+            cached_token = authManager.get_cached_token() 
+            if cached_token is None:
+                raise Exception
+            spAPIManager = spotipy.Spotify(auth_manager=authManager)       
+        except: # If there is no token in the cache, follow the procedure for manual authentication
+            access_token = PKCE_getAcessToken()
+            spAPIManager = spotipy.Spotify(auth_manager=authManager, auth=access_token)
 
-    authManager = spotipy.oauth2.SpotifyPKCE(client_id="b20f0802c77540a0963048cc394ec998", 
+        return spAPIManager
+
+    authManager = spotipy.oauth2.SpotifyPKCE(client_id="b8b25b07b616497b86b1ce40bd2ef2c6", 
                                 redirect_uri="https://cezargab.github.io/Overlyrics", 
                                 scope="user-read-playback-state",
                                 cache_handler= spotipy.CacheFileHandler(".cache_sp"),
                                 open_browser=True)
 
-    try: # Tries to use the cache to authenticate
-        cached_token = authManager.get_cached_token() 
-        if cached_token is None:
-            raise Exception
-        spAPIManager = spotipy.Spotify(auth_manager=authManager)       
-    except: # If there is no token in the cache, follow the procedure for manual authentication
-        access_token = PKCE_getAcessToken()
-        spAPIManager = spotipy.Spotify(auth_manager=authManager, auth=access_token)
         
-    return spAPIManager
+    return UpdateAccessToken()
 
 def nolyricsfound():
     global actualVerse, parsed_lyrics
