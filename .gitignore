@@ -7,3 +7,4 @@ readmes/*
 .cache
 spotify.py
 spotify.py
+*.lrc

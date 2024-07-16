@@ -9,9 +9,10 @@ sp = Spotify(sp_dc)
 
 def GetLyricsOfCurrentSong():
     try:
+        sp = Spotify(sp_dc)
         lyrics =  sp.get_lyrics(sp.get_current_song()['item']['id'])
         return format_lrc_local(lyrics, sp.get_current_song()['item'])
-    except:
+    except Exception as e:
         return ''
     
 def GetLyricsOfId(id):
@@ -20,7 +21,7 @@ def GetLyricsOfId(id):
         #print(lyrics)
         #print(format_lrc_local(lyrics, sp.get_current_song()['item']))
         return format_lrc_local(lyrics, sp.get_current_song()['item'])
-    except:
+    except Exception as e:
         return ''
 
 
