@@ -23,6 +23,7 @@ from tkinter import simpledialog
 import json
 import socket
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from lyricsSaver import *
 
 # Global queue to handle Tkinter updates in the main thread
 update_queue = queue.Queue()
@@ -310,7 +311,7 @@ def getCurrentTrackInfo():
         track_name = current_track['item']['name']
         is_playing = current_track['is_playing']
         progress_ms = current_track['progress_ms']
-        
+        song_id = current_track['item']['id']
         
         # Convert progress_ms to minutes and seconds
         progress_sec = progress_ms // 1000
@@ -323,7 +324,8 @@ def getCurrentTrackInfo():
             'trackName': track_name,
             'progressMin': progress_min,
             'progressSec': progress_sec,
-            'isPlaying': is_playing
+            'isPlaying': is_playing,
+            'song_id': song_id
         }
     except Exception as e:
         sp = spotipyAuthentication()
@@ -332,19 +334,19 @@ def getCurrentTrackInfo():
 # Function to update song information
 def update_track_info():
     while True:
-        global trackName, artistName, currentProgress, isPaused 
-        trackName, artistName, currentProgress, isPaused = get_track_info()
+        global trackName, artistName, currentProgress, isPaused, song_id
+        trackName, artistName, currentProgress, isPaused, song_id = get_track_info()
         # spotipyAuthentication()
         time.sleep(PERIOD_TO_UPDATE_TRACK_INFO)   # Wait PERIOD_TO_UPDATE_TRACK_INFO second before getting the information again
 
 # Function to get the useful song information
 def get_track_info():
-    global trackName, artistName, currentProgress, isPaused 
+    global trackName, artistName, currentProgress, isPaused, song_id
 
     trackInfo = getCurrentTrackInfo()
 
     if(trackInfo is None):
-        trackName = artistName = currentProgress = isPaused = None
+        trackName = artistName = currentProgress = isPaused = song_id = None
     else:    
         previousTrackName = trackName
 
@@ -352,6 +354,7 @@ def get_track_info():
         artistName = trackInfo['artist']
         currentProgress = trackInfo['progressMin'] * 60 + trackInfo['progressSec']
         isPaused = not trackInfo['isPlaying']
+        song_id = trackInfo['song_id']
 
         print("get_track_info(): ", trackName) if VERBOSE_MODE else None
         if((previousTrackName != trackName) and (trackName != None) and (trackName != " ")):
@@ -362,7 +365,7 @@ def get_track_info():
 
     update_event.set()  # Flag that variables have been updated
 
-    return trackName, artistName, currentProgress, isPaused
+    return trackName, artistName, currentProgress, isPaused, song_id
 
 def update_display():
     while True:
@@ -424,7 +427,14 @@ def display_lyrics(trackName, artistName, currentProgress, isPaused):
             searchTerm = "{} {}".format(trackName, artistName)
             #print("buscando lyrics de " + searchTerm)
             #lyrics = syncedlyrics.search(searchTerm)
-            lyrics = GetLyricsOfCurrentSong()
+
+            #searches for the song in the song folder, if it doesn't exists then it saves it.
+            searchOnFolder = SearchLyricsOnFolder(song_id)
+            if(searchOnFolder['result']):
+                lyrics = searchOnFolder['lyrics']
+            else:
+                lyrics = GetLyricsOfCurrentSong()
+                SaveLyrics(song_id, lyrics)
             #print(lyrics)
             if (lyrics is None or lyrics.isspace()):
                 print("Track not found.") if VERBOSE_MODE else None
@@ -560,9 +570,9 @@ def spotipyAuthentication():
 
     # Initialize the SpotifyPKCE manager
     authManager = SpotifyPKCE(
-        client_id="",
+        client_id="b8b25b07b616497b86b1ce40bd2ef2c6",
         redirect_uri="http://localhost:8080/callback",
-        scope="user-read-playback-state",
+        scope="user-read-playback-state user-read-currently-playing",
         cache_handler=CacheFileHandler(cache_file),
         open_browser=True
     )
@@ -609,16 +619,17 @@ def spotipyAuthentication():
         refresh_token = authManager.get_cached_token()["refresh_token"]
         new_token_info = authManager.refresh_access_token(refresh_token)
         # asd = authManager._save_token_info(new_token_info)
-        with open(cache_file, 'w') as cache:
-            json.dump(new_token_info, cache)
+        #with open(cache_file, 'w') as cache:
+        #    json.dump(new_token_info, cache)
             
-        return new_token_info["refresh_token"]
+        return new_token_info["access_token"]
 
     def get_spotify_client():
         try:
             token_info = get_token_info()
             sp = spotipy.Spotify(auth=token_info)
-            
+            print("info de token:")
+            print(token_info)
         except spotipy.SpotifyException as e:
             if e.http_status == 401:
                 token_info = refresh_access_token()
