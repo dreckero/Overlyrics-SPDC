@@ -1,29 +1,18 @@
 # -*- coding: utf-8 -*-
 
 import tkinter as tk
-import tkinter.ttk as ttk
 import time
 from datetime import datetime
 import re
-import syncedlyrics
-import sched
-import spotipy
-from spotipy.oauth2 import SpotifyPKCE, CacheFileHandler
 import threading
 import queue
 import sys
 from tkinter import messagebox
 import tkinter.font as font
-import os
-import webbrowser
 from spotify import *
 import queue
 from tkinter import simpledialog
-# ----
-import json
-import socket
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from lyricsSaver import *
+from apicallspotify import *
 
 # Global queue to handle Tkinter updates in the main thread
 update_queue = queue.Queue()
@@ -42,6 +31,7 @@ lines_per_lyrics = 3 # Lines to show per lyrics (make sure that is always an odd
 transparency = 1.0 # Default transparency for the whole windows
 custom_font = ""
 display_offset_ms = 200 # Offset in milliseconds to show the actual lyrics
+update_track_info_condition = True # Use to stop the main loop
 
 # Constants:
 VERBOSE_MODE = False  # If true, prints specific logs in the code (for debugging)
@@ -60,7 +50,6 @@ def create_overlay_text():
     root.overrideredirect(True)
     root.configure(bg="#010311")
     root.title("Overlyrics")
-    root.iconbitmap(default="icons/overlyrics-icon.ico")
     root.wm_attributes('-transparentcolor', root['bg'])
 
     try:
@@ -116,6 +105,9 @@ def on_right_click(event):
     menu.add_command(label="Set lyrics offset", command=change_display_offset_ms)
     menu.add_command(label="Set transparency", command=change_transparency)
     menu.add_command(label="Set lines per lyrics", command=change_lines_per_lyrics)
+    
+    menu.add_separator()
+    menu.add_command(label="Close", command=close_application)
     
     menu.post(event.x_root, event.y_root)
 
@@ -226,6 +218,15 @@ def change_lines_per_lyrics():
         overlay_text_labels.append(text_label)
     
     overlay_root.update()
+    
+def close_application():
+    global update_track_info_condition
+    update_track_info_condition = False
+    overlay_root.quit()
+    update_thread.join()  # Wait for the update_track_info thread to finish
+    update_display_thread.join()  # Wait for the update_display thread to finish
+    overlay_root.destroy()
+    sys.exit()
 
 # -------------------------------------
 # End Menu functions
@@ -297,8 +298,7 @@ def process_queue():
 
 def getCurrentTrackInfo():
     try:
-        global sp
-        current_track = sp.current_user_playing_track() # Get the information of the music being listened to, through the API
+        current_track = get_currently_playing() # Get the information of the music being listened to, through the API //ACA
 
         # Check if there is music playing
         if current_track is None or (current_track['item'] is None):
@@ -311,7 +311,7 @@ def getCurrentTrackInfo():
         track_name = current_track['item']['name']
         is_playing = current_track['is_playing']
         progress_ms = current_track['progress_ms']
-        song_id = current_track['item']['id']
+        
         
         # Convert progress_ms to minutes and seconds
         progress_sec = progress_ms // 1000
@@ -325,28 +325,27 @@ def getCurrentTrackInfo():
             'progressMin': progress_min,
             'progressSec': progress_sec,
             'isPlaying': is_playing,
-            'song_id': song_id
+            'item': current_track['item']
         }
     except Exception as e:
-        sp = spotipyAuthentication()
+        refresh_access_token()
         getCurrentTrackInfo()
 
 # Function to update song information
 def update_track_info():
-    while True:
-        global trackName, artistName, currentProgress, isPaused, song_id
-        trackName, artistName, currentProgress, isPaused, song_id = get_track_info()
-        # spotipyAuthentication()
+    while update_track_info_condition:
+        global trackName, artistName, currentProgress, isPaused, item
+        trackName, artistName, currentProgress, isPaused, item = get_track_info()
         time.sleep(PERIOD_TO_UPDATE_TRACK_INFO)   # Wait PERIOD_TO_UPDATE_TRACK_INFO second before getting the information again
 
 # Function to get the useful song information
 def get_track_info():
-    global trackName, artistName, currentProgress, isPaused, song_id
+    global trackName, artistName, currentProgress, isPaused, item
 
     trackInfo = getCurrentTrackInfo()
 
     if(trackInfo is None):
-        trackName = artistName = currentProgress = isPaused = song_id = None
+        trackName = artistName = currentProgress = isPaused = None
     else:    
         previousTrackName = trackName
 
@@ -354,7 +353,7 @@ def get_track_info():
         artistName = trackInfo['artist']
         currentProgress = trackInfo['progressMin'] * 60 + trackInfo['progressSec']
         isPaused = not trackInfo['isPlaying']
-        song_id = trackInfo['song_id']
+        item = trackInfo['item']
 
         print("get_track_info(): ", trackName) if VERBOSE_MODE else None
         if((previousTrackName != trackName) and (trackName != None) and (trackName != " ")):
@@ -365,19 +364,20 @@ def get_track_info():
 
     update_event.set()  # Flag that variables have been updated
 
-    return trackName, artistName, currentProgress, isPaused, song_id
+    return trackName, artistName, currentProgress, isPaused, item
 
 def update_display():
-    while True:
-        display_lyrics(trackName, artistName, currentProgress, isPaused)
+    while update_track_info_condition:
+        display_lyrics(trackName, artistName, currentProgress, isPaused, item)
         
-        if(trackName is None):
+        if trackName is None:
             noMusicIsPlayingOnSpotify()
         else:
             update_overlay_text()
+        time.sleep(0.1)  # Add a small sleep to avoid busy-waiting
 
 # Function to display the synchronized lyrics
-def display_lyrics(trackName, artistName, currentProgress, isPaused):
+def display_lyrics(trackName, artistName, currentProgress, isPausedm, item):
         global actualTrackLyrics, parsed_lyrics, time_str, timestampsInSeconds
 
         def getParsedLyrics(lyrics): ## Returns a dict with the entire lyrics and the respectively timestamps
@@ -427,14 +427,7 @@ def display_lyrics(trackName, artistName, currentProgress, isPaused):
             searchTerm = "{} {}".format(trackName, artistName)
             #print("buscando lyrics de " + searchTerm)
             #lyrics = syncedlyrics.search(searchTerm)
-
-            #searches for the song in the song folder, if it doesn't exists then it saves it.
-            searchOnFolder = SearchLyricsOnFolder(song_id)
-            if(searchOnFolder['result']):
-                lyrics = searchOnFolder['lyrics']
-            else:
-                lyrics = GetLyricsOfCurrentSong()
-                SaveLyrics(song_id, lyrics)
+            lyrics = GetLyricsOfCurrentSong(item)
             #print(lyrics)
             if (lyrics is None or lyrics.isspace()):
                 print("Track not found.") if VERBOSE_MODE else None
@@ -450,195 +443,6 @@ def display_lyrics(trackName, artistName, currentProgress, isPaused):
 
         update_event.wait()  # Waiting until the variables update
         update_event.clear()  # Clearing the update signal event
-
-# def spotipyAutenthication():
-#     # Descontinuado/Deprecated (needs the client_secret, which can't be exposed):
-#     #sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id="7710e2a5ffe241fd908c556a08452341", client_secret="<SECRET>", 
-#     # redirect_uri="https://google.com", scope="user-library-read, user-read-playback-state"))
-#     def authWindowToGetAuthCode():
-#         def paste_from_clipboard(): # Handle of copy/paste button
-#             clipboard_content = authWindow.clipboard_get()
-#             codeEntry.delete(0, tk.END)
-#             codeEntry.insert(0, clipboard_content)
-
-#         def finish_authentication(): # Handle of finish button
-#             nonlocal auth_code
-#             auth_code = codeEntry.get()
-#             authWindow.destroy()
-
-#         auth_code = None
-
-#         authWindow = tk.Tk()
-#         authWindow.iconbitmap(default="icons/overlyrics-icon.ico")
-#         authWindow.title("Overlyrics: autenticação")
-
-#         try:  # Trying to load the custom font from the ttf file
-#            custom_font = font.Font(family="Public Sans", size="12", weight="normal")
-#         except tk.TclError:
-#            custom_font = font.Font(family="Arial", size="12", weight="normal")
-
-#         # Theme Forest TTK by rdbende
-#         authWindow.tk.call('source', 'tkinter-themes/forest-dark.tcl')
-#         ttk.Style().theme_use('forest-dark')
-
-#         # Window settings
-#         width=600
-#         height=500
-#         screenwidth = authWindow.winfo_screenwidth()
-#         screenheight = authWindow.winfo_screenheight()
-#         alignstr = '%dx%d+%d+%d' % (width, height, (screenwidth - width) / 2, (screenheight - height) / 2)
-#         authWindow.geometry(alignstr)
-#         authWindow.resizable(width=False, height=False)
-
-#         #>>> LABELS:
-#         # Code Entry
-#         codeEntry=ttk.Entry(authWindow)
-#         codeEntry["font"] = custom_font
-#         codeEntry["justify"] = "center"
-#         codeEntry["text"] = ""
-#         codeEntry.place(x=30,y=250,width=551,height=59)
-
-#         # Paste button
-#         paste_button = ttk.Button(authWindow, text="Colar / Paste", command=paste_from_clipboard)
-#         paste_button.place(x=475, y=255, width=100, height=50)
-
-#         # Text entry
-#         text_en=tk.Label(authWindow)
-#         text_en["font"] = custom_font
-#         text_en["justify"] = "center"
-#         text_en["text"] = "Proceed the authentication in your browser and paste the code bellow."
-#         text_en.place(x=0,y=200,width=599,height=36)
-#         text_br=tk.Label(authWindow)
-#         text_br["font"] = custom_font
-#         text_br["justify"] = "center"
-#         text_br["text"] = "Prossiga com a autenticação pelo navegador e cole o código abaixo."
-#         text_br.place(x=0,y=160,width=599,height=30)
-
-#         # "Finalizar autenticação / Finish Authentication" button
-#         finish_button = ttk.Button(authWindow, text="Finalizar autenticação / Finish Authentication", command=finish_authentication, style="Accent.TButton")
-#         finish_button.place(x=30, y=340, width=551, height=30)
-
-#         while(auth_code is None):
-#             authWindow.mainloop()
-
-#         return auth_code
-
-#     def PKCE_getAcessToken():
-#         global authManager
-#         authURL = authManager.get_authorize_url()
-
-#         # [CURRENTLY UNNECESSARY] 
-#         # Solving a bug with PyInstaller (github.com/pyinstaller/pyinstaller/issues/6334)
-#         #lp_key = "LD_LIBRARY_PATH"
-#         #lp_orig = os.environ.get(f"{lp_key}_ORIG")
-#         #if lp_orig is not None:
-#         #    os.environ[lp_key] = lp_orig
-#         try:
-#             webbrowser.open_new_tab(authURL)
-#         except Exception as e:
-#             raise Exception("Error when opening website in default browser to perform authentication. Please check your internet and try again.") 
-
-#         auth_code = authWindowToGetAuthCode() 
-#         access_token = authManager.get_access_token(code=auth_code, check_cache=False) #
-        
-#         return access_token
-    
-#     def UpdateAccessToken():
-#         global authManager
-#         authManager = spotipy.oauth2.SpotifyPKCE(client_id="b20f0802c77540a0963048cc394ec998", 
-#                                 redirect_uri="https://cezargab.github.io/Overlyrics", 
-#                                 scope="user-read-playback-state",
-#                                 cache_handler= spotipy.CacheFileHandler(".cache_sp.json"),
-#                                 open_browser=True)
-#         try: # Tries to use the cache to authenticate
-#             cached_token = authManager.get_cached_token()
-#             if cached_token is None:
-#                 raise Exception
-#             spAPIManager = spotipy.Spotify(auth_manager=authManager)       
-#         except: # If there is no token in the cache, follow the procedure for manual authentication
-#             access_token = PKCE_getAcessToken()
-#             # AQAVrWBPhal8-7mIhx0retKsmQsimxXU7iUnDtzCgMnVLv424Kr5omUv1LXowsBnx5qYXuW0dX6KmHEOhCHrDlIYmWP8QHNMITf9QRRBIm2gfWznc1LA4R3p3a85xwIKSVQ3QTsqPOx8JUcRxVyC3upxepYVxu5Vd9WTB3GDquOMfqLkuNdpNtZW5a4im3rWmBZHajtm14-qrH0IMjjdL52e7i4UdixjvLLav5LC3psUjPfIteTZ6xI4vq5Sv_DF6Civ7sT59VbvgO8XGjSJYOSAApBKmw
-#             spAPIManager = spotipy.Spotify(auth_manager=authManager, auth=access_token)
-
-#         return spAPIManager
-        
-#     return UpdateAccessToken()
-
-def spotipyAuthentication():
-    global authManager
-    cache_file = ".cache_sp.json"
-
-    # Initialize the SpotifyPKCE manager
-    authManager = SpotifyPKCE(
-        client_id="b8b25b07b616497b86b1ce40bd2ef2c6",
-        redirect_uri="http://localhost:8080/callback",
-        scope="user-read-playback-state user-read-currently-playing",
-        cache_handler=CacheFileHandler(cache_file),
-        open_browser=True
-    )
-
-    class AuthRequestHandler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            if self.path.startswith('/callback'):
-                query = self.path.split('?')[1]
-                params = dict(param.split('=') for param in query.split('&'))
-                self.server.auth_code = params.get('code')
-                self.send_response(200)
-                self.send_header('Content-type', 'text/html')
-                self.end_headers()
-                self.wfile.write(b'Authentication successful. You can close this window.')
-            else:
-                self.send_response(404)
-                self.end_headers()
-
-    def get_auth_code():
-        # Start a simple HTTP server to listen for the callback
-        server_address = ('', 8080)
-        httpd = HTTPServer(server_address, AuthRequestHandler)
-
-        # Open the authorization URL in the default web browser
-        auth_url = authManager.get_authorize_url()
-        webbrowser.open(auth_url)
-
-        # Serve until we get the authorization code
-        httpd.handle_request()
-        return httpd.auth_code
-
-    def get_token_info():
-        token_info = authManager.get_cached_token()
-
-        if not token_info:
-            auth_code = get_auth_code()
-            token_info = authManager.get_access_token(auth_code)
-        else:
-            token_info = refresh_access_token()
-            
-        return token_info
-
-    def refresh_access_token():
-        refresh_token = authManager.get_cached_token()["refresh_token"]
-        new_token_info = authManager.refresh_access_token(refresh_token)
-        # asd = authManager._save_token_info(new_token_info)
-        #with open(cache_file, 'w') as cache:
-        #    json.dump(new_token_info, cache)
-            
-        return new_token_info["access_token"]
-
-    def get_spotify_client():
-        try:
-            token_info = get_token_info()
-            sp = spotipy.Spotify(auth=token_info)
-            print("info de token:")
-            print(token_info)
-        except spotipy.SpotifyException as e:
-            if e.http_status == 401:
-                token_info = refresh_access_token()
-                sp = spotipy.Spotify(auth=token_info)
-            else:
-                raise e
-        return sp
-
-    return get_spotify_client()
 
 def nolyricsfound():
     global actualVerse, parsed_lyrics
@@ -666,15 +470,15 @@ trackName = ""
 artistName = ""
 currentProgress = 0
 isPaused = False
+item = ''
 actualVerse = ""
 
 actualTrackLyrics = ""
 parsed_lyrics = {}
 time_str = ""
 timestampsInSeconds = []
-authManager = ""
 
-sp = spotipyAuthentication()
+init()
 
 overlay_root, overlay_text_labels = create_overlay_text()
 overlay_root.update()

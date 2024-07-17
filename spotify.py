@@ -1,33 +1,21 @@
 from syrics.api import Spotify
 from syrics.core import *
+from apicallspotify import *
 
 token_url = "https://open.spotify.com/get_access_token?reason=transport&productType=web_player"
 lyrics_url = "https://spclient.wg.spotify.com/color-lyrics/v2/track/"
-sp_dc = "SPOTIFY_COOKIE_HERE"
 
-sp = Spotify(sp_dc)
-
-def GetLyricsOfCurrentSong():
+def GetLyricsOfCurrentSong(item):
     try:
-        sp = Spotify(sp_dc)
-        lyrics =  sp.get_lyrics(sp.get_current_song()['item']['id'])
-        return format_lrc_local(lyrics, sp.get_current_song()['item'])
+        sp = Spotify(get_sp_dc())
+        lyrics =  sp.get_lyrics(item['id'])
+        return format_lrc_local(lyrics, item)
     except Exception as e:
+        sp = Spotify(get_sp_dc())
         return ''
-    
-def GetLyricsOfId(id):
-    try:
-        lyrics =  sp.get_lyrics(id)
-        #print(lyrics)
-        #print(format_lrc_local(lyrics, sp.get_current_song()['item']))
-        return format_lrc_local(lyrics, sp.get_current_song()['item'])
-    except Exception as e:
-        return ''
-
 
 def format_lrc_local(lyrics_json, track_data):
     try:
-        lyrics = lyrics_json
         minutes, seconds = divmod(int(track_data["duration_ms"]) / 1000, 60)
         lrc = [
             f'[ti:{track_data["name"]}]',
