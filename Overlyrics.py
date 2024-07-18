@@ -251,10 +251,11 @@ def open_float_input(text, min, max):
     return value
 
 def change_font_size():
-    global custom_font
+    global used_font_size, font_tuple
     value = open_integer_input("Enter font size:", 8, 72)
     if value:
-        custom_font.config(size=value)
+        used_font_size = value
+        font_tuple = (used_font, used_font_size, font_weight)
         overlay_root.update()
         
 def change_display_offset_ms():
