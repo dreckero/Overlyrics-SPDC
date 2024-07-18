@@ -25,27 +25,27 @@ update_queue = queue.Queue()
 # Main global variables
 # Font global variables
 #----------------
+#TODO: change this variables to read them from a config file saving latest options used. 
 selected_theme = "LIGHT" # Default selected theme
 selected_main_color = "MAGENTA" # Default selected main color
-light_color = "#BBBBBB" # Default selected color for light theme
-dark_color = "#404040" # Default selected color for dark theme
-main_color = "#FF00FF" # Default selected color for the actual verse that is playing
 used_font = 'Roboto'
 used_font_size = 22
 font_weight = 'bold'
+lines_per_lyrics = 3 # Lines to show per lyrics (make sure that is always an odd number and not more than 15 or it'll be 3 as default)
+transparency = 1.0 # Default transparency for the whole windows
+display_offset_ms = 200 # Offset in milliseconds to show the actual lyrics
+#END TODO
+
+light_color = "#BBBBBB" # Default selected color for light theme
+dark_color = "#404040" # Default selected color for dark theme
+main_color = "#FF00FF" # Default selected color for the actual verse that is playing
 font_tuple = (used_font, used_font_size, font_weight)
 button_canvas = None
 canvas2 = None
 show_player = True
 root = None
 #----------------
-
-lines_per_lyrics = 3 # Lines to show per lyrics (make sure that is always an odd number and not more than 15 or it'll be 3 as default)
-transparency = 1.0 # Default transparency for the whole windows
-custom_font = ""
-display_offset_ms = 200 # Offset in milliseconds to show the actual lyrics
 update_track_info_condition = True # Use to stop the main loop
-
 drag_start_x = False
 drag_start_y = None
 dragging = None
@@ -57,7 +57,7 @@ PERIOD_TO_UPDATE_TRACK_INFO = 0.1  # Updates the displaying verses every PERIOD_
 FONT_FOLDER = str(pathlib.Path(__file__).parent.resolve()) + "\\fonts"
 
 def create_overlay_text():
-    global main_color, selected_theme, lines_per_lyrics, custom_font, font_tuple, button_canvas, canvas2, show_player, root
+    global main_color, selected_theme, lines_per_lyrics, font_tuple, button_canvas, canvas2, show_player, root
     
     if lines_per_lyrics not in [1, 3, 5, 7, 9, 11, 13, 15]:
         lines_per_lyrics = 3
@@ -69,11 +69,6 @@ def create_overlay_text():
     root.configure(bg="#010311")
     root.title("Overlyrics")
     root.wm_attributes('-transparentcolor', root['bg'])
-    
-    try:
-        custom_font = font.Font(family="Public Sans", size=22, weight="normal")
-    except tk.TclError:
-        custom_font = font.Font(family="Arial", size=22, weight="normal")
 
     custom_bar_font = font.Font(family="Arial", size="12", weight="normal")
     upper_bar = tk.Label(root, text="", font=custom_bar_font, fg="#dfe0eb", bg="#010311")
@@ -85,7 +80,7 @@ def create_overlay_text():
     
     for i in range(lines_per_lyrics):
         fg_color = main_color if i == middle_index else "#dfe0eb"
-        text_label = tk.Label(root, text="", font=custom_font, fg=fg_color, bg="#010311")
+        text_label = tk.Label(root, text="", fg=fg_color, bg="#010311")
         text_label.configure(font=font_tuple)
         text_label.pack()
         text_labels.append(text_label)
@@ -318,6 +313,7 @@ def switch_player_square():
     
     overlay_root.update()
 
+#open windows with font selector
 def change_font():
     global root
     win = tk.Toplevel()
