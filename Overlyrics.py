@@ -64,11 +64,11 @@ def create_overlay_text():
     root.wm_attributes('-transparentcolor', root['bg'])
 
     try:
-        custom_font = font.Font(family="Public Sans", size=22, weight="normal")
+        custom_font = font.Font(family="Comic Sans MS", size=22, weight="bold")
     except tk.TclError:
-        custom_font = font.Font(family="Arial", size=22, weight="normal")
+        custom_font = font.Font(family="comic", size=22, weight="bold")
 
-    custom_bar_font = font.Font(family="Arial", size="8", weight="normal")
+    custom_bar_font = font.Font(family="comic", size="8", weight="bold")
     upper_bar = tk.Label(root, text="", font=custom_bar_font, fg="#dfe0eb", bg="#010311")
     upper_bar.pack()
     
@@ -79,6 +79,8 @@ def create_overlay_text():
     for i in range(lines_per_lyrics):
         fg_color = main_color if i == middle_index else "#dfe0eb"
         text_label = tk.Label(root, text="", font=custom_font, fg=fg_color, bg="#010311")
+        Font_tuple = ("Comic Sans MS", 20, "bold") 
+        text_label.configure(font = Font_tuple)
         text_label.pack()
         text_labels.append(text_label)
     
