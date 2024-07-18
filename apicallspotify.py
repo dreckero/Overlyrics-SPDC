@@ -13,7 +13,7 @@ from tkinter import simpledialog
 # Global variables
 client_id = 'b20f0802c77540a0963048cc394ec998'
 redirect_uri = 'http://localhost:8080/callback'
-scope ='user-read-playback-state user-read-email user-read-private'
+scope ='user-read-playback-state user-read-email user-read-private user-modify-playback-state'
 token_url = 'https://accounts.spotify.com/api/token'
 api_url = 'https://api.spotify.com/v1/me'
 
@@ -23,7 +23,9 @@ VERBOSE_MODE = False  # If true, prints specific logs in the code (for debugging
 def init():
     global code_verifier, code_challenge, auth_url, authorization_code, token_response
     resp = load_from_cache()
-    if resp is None:
+    _access_token = resp.get('access_token')
+    _refresh_token = resp.get('refresh_token')
+    if resp is None or _access_token is None or _refresh_token is None:
         code_verifier = generate_code_verifier()
         code_challenge = generate_code_challenge(code_verifier)
         auth_url = get_authorization_url()
@@ -105,17 +107,18 @@ def refresh_access_token():
     
     return data
 
-def get_currently_playing(method='GET', params=None):
+def request_to_spotify(method, url, headers, params=None):
     try:
         global access_token, api_url
-        endpoint = api_url + '/player/currently-playing'
-        headers = {
-            'Authorization': f'Bearer {access_token}'
-        }
+        
+        endpoint = api_url + url
+        
         if method == 'GET':
             response = requests.get(endpoint, headers=headers, params=params)
         elif method == 'POST':
             response = requests.post(endpoint, headers=headers, data=params)
+        elif method == 'PUT':
+            response = requests.put(endpoint, headers=headers, json=params)
             
         if response.status_code == 204:
             print("No content - Spotify is not open or no track is playing.") if VERBOSE_MODE else None
@@ -132,6 +135,83 @@ def get_currently_playing(method='GET', params=None):
             print("Response content is not valid JSON") if VERBOSE_MODE else None
             return None
             
+        return response_data
+    except Exception as e:
+        print(f'Exception in request_to_spotify:\n{e}') if VERBOSE_MODE else None
+
+def get_currently_playing():
+    try:
+        global progress_ms
+        headers = {
+            'Authorization': f'Bearer {access_token}'
+        }
+        response_data = request_to_spotify('GET', '/player/currently-playing', headers)
+        if response_data:
+            progress_ms = response_data.get('progress_ms')
+        get_devices()
+        return response_data
+    except Exception as e:
+        print(f'Exception in get_currently_playing:\n{e}') if VERBOSE_MODE else None
+        
+def get_devices():
+    try:
+        global device_id
+        headers = {
+            'Authorization': f'Bearer {access_token}'
+        }
+        response_data = request_to_spotify('GET', '/player/devices', headers)
+        for d in response_data.get('devices'):
+            if d.get('is_active'):
+                device_id = d.get('id')
+        return response_data
+    except Exception as e:
+        print(f'Exception in get_devices:\n{e}') if VERBOSE_MODE else None
+        
+def start_resume_playback():
+    try:
+        global progress_ms, device_id
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'application/json'
+        }
+        data = {
+            "position_ms": progress_ms
+        }
+        url = '/player/play'
+        if device_id:
+            url = url + f'?device_id={device_id}'
+        
+        response_data = request_to_spotify('PUT', url, headers, data)
+        return response_data
+    except Exception as e:
+        print(f'Exception in get_currently_playing:\n{e}') if VERBOSE_MODE else None
+        
+def pause_playback():
+    try:
+        headers = {
+            'Authorization': f'Bearer {access_token}'
+        }
+        response_data = request_to_spotify('PUT', '/player/pause', headers)
+        return response_data
+    except Exception as e:
+        print(f'Exception in get_currently_playing:\n{e}') if VERBOSE_MODE else None
+
+def next_playback():
+    try:
+        headers = {
+            'Authorization': f'Bearer {access_token}'
+        }
+        response_data = request_to_spotify('POST', '/player/next', headers)
+        return response_data
+    except Exception as e:
+        print(f'Exception in get_currently_playing:\n{e}') if VERBOSE_MODE else None
+
+def back_playback():
+    try:
+        headers = {
+            'Authorization': f'Bearer {access_token}'
+        }
+        response_data = request_to_spotify('POST', '/player/previous', headers)
         return response_data
     except Exception as e:
         print(f'Exception in get_currently_playing:\n{e}') if VERBOSE_MODE else None
@@ -190,6 +270,14 @@ def get_sp_dc():
     global sp_dc
     return sp_dc
 
+def set_progress_ms(ms):
+    global progress_ms
+    progress_ms = 0
+    
+def get_progress_ms():
+    global progress_ms
+    return progress_ms
+
 # Global variables
 access_token = ''
 refresh_token = ''
@@ -199,6 +287,8 @@ code_challenge = ''
 auth_url = ''
 authorization_code = ''
 token_response = ''
+device_id = ''
+progress_ms = 0
 
 # init()
 # me_response = get_currently_playing()

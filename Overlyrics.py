@@ -33,6 +33,10 @@ custom_font = ""
 display_offset_ms = 200 # Offset in milliseconds to show the actual lyrics
 update_track_info_condition = True # Use to stop the main loop
 
+drag_start_x = False
+drag_start_y = None
+dragging = None
+
 # Constants:
 VERBOSE_MODE = False  # If true, prints specific logs in the code (for debugging)
 CUSTOM_EXCEPT_HOOK = True  # If active, errors appear in customized window
@@ -57,7 +61,7 @@ def create_overlay_text():
     except tk.TclError:
         custom_font = font.Font(family="Arial", size=22, weight="normal")
 
-    custom_bar_font = font.Font(family="Arial", size="8", weight="normal")
+    custom_bar_font = font.Font(family="Arial", size="12", weight="normal")
     upper_bar = tk.Label(root, text="", font=custom_bar_font, fg="#dfe0eb", bg="#010311")
     upper_bar.pack()
     
@@ -71,14 +75,33 @@ def create_overlay_text():
         text_label.pack()
         text_labels.append(text_label)
     
-    canvas2 = tk.Canvas(root, width=20, height=15, bg="#AAAAAA", highlightthickness=0) #width=root.winfo_screenwidth()
-    canvas2.place(x=0, y=0)
+    # Create canvas for buttons
+    button_canvas = tk.Canvas(root, width=100, height=20, bg="#010311", highlightthickness=0)
+    button_canvas.place(x=0, y=0)
 
-    # Dragging functionality
+    # Create left arrow button
+    left_arrow_points = [0, 10, 10, 0, 10, 20]
+    left_arrow = button_canvas.create_polygon(left_arrow_points, fill="#AAAAAA")
+    button_canvas.tag_bind(left_arrow, "<ButtonPress-1>", lambda event: on_drag_start(event, root))
+    button_canvas.tag_bind(left_arrow, "<B1-Motion>", on_dragging)
+    button_canvas.tag_bind(left_arrow, "<ButtonRelease-1>", lambda event: on_back_click(event, root))
+
+    # Create play/pause button (circle)
+    play_pause_button = button_canvas.create_oval(15, 2, 31, 18, fill="#AAAAAA")
+    button_canvas.tag_bind(play_pause_button, "<ButtonPress-1>", lambda event: on_drag_start(event, root))
+    button_canvas.tag_bind(play_pause_button, "<B1-Motion>", on_dragging)
+    button_canvas.tag_bind(play_pause_button, "<ButtonRelease-1>", lambda event: on_play_pause_click(event, root))
+
+    # Create right arrow button
+    right_arrow_points = [36, 0, 46, 10, 36, 20]
+    right_arrow = button_canvas.create_polygon(right_arrow_points, fill="#AAAAAA")
+    button_canvas.tag_bind(right_arrow, "<ButtonPress-1>", lambda event: on_drag_start(event, root))
+    button_canvas.tag_bind(right_arrow, "<B1-Motion>", on_dragging)
+    button_canvas.tag_bind(right_arrow, "<ButtonRelease-1>", lambda event: on_next_click(event, root))
     
-    
-    root.bind("<ButtonPress-1>", on_drag_start)
+    root.bind("<ButtonPress-1>", lambda event: on_drag_start(event, root))
     root.bind("<B1-Motion>", on_dragging)
+    root.bind("<ButtonRelease-1>", lambda event: on_window_move_end(event, root))
     root.bind("<Button-3>", on_right_click)
     
     return root, text_labels
@@ -86,6 +109,25 @@ def create_overlay_text():
 # -------------------------------------
 # Menu functions
 # -------------------------------------
+
+def on_back_click(event, root):
+    global isPaused
+    if dragging is False:
+        back_playback()
+    # Add your logic here
+
+def on_play_pause_click(event, root):
+    if dragging is False:
+        if isPaused:
+            start_resume_playback()
+        else:
+            pause_playback()
+    # Add your logic here
+
+def on_next_click(event, root):
+    if dragging is False:
+        next_playback()
+    # Add your logic here
 
 def on_right_click(event):
     global selected_theme, main_color, overlay_root
@@ -134,16 +176,23 @@ def switch_to_dark_theme():
             label.config(fg=main_color)
     overlay_root.update()
 
-def on_drag_start(event):
+def on_drag_start(event, root):
     global drag_start_x, drag_start_y
     drag_start_x = event.x
     drag_start_y = event.y
 
 def on_dragging(event):
-    global drag_start_x, drag_start_y, overlay_root
+    global drag_start_x, drag_start_y, overlay_root, dragging
+    dragging = True
     root_x = overlay_root.winfo_x() + (event.x - drag_start_x)
     root_y = overlay_root.winfo_y() + (event.y - drag_start_y)
     overlay_root.geometry(f"+{root_x}+{root_y}")
+
+def on_window_move_end(event, root):
+    global dragging
+    dragging = False
+    # This is to handle any cleanup after dragging ends, if needed
+    pass
     
 def switch_main_color_cyan():
     global main_color, overlay_text_labels, selected_main_color
@@ -428,6 +477,7 @@ def display_lyrics(trackName, artistName, currentProgress, isPausedm, item):
             #print("buscando lyrics de " + searchTerm)
             #lyrics = syncedlyrics.search(searchTerm)
             lyrics = GetLyricsOfCurrentSong(item)
+            set_progress_ms(0)
             #print(lyrics)
             if (lyrics is None or lyrics.isspace()):
                 print("Track not found.") if VERBOSE_MODE else None
