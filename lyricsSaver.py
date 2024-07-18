@@ -5,6 +5,8 @@ full_path = os.path.realpath(__file__)
 LYRICS_FOLDER = str(pathlib.Path(__file__).parent.resolve()) + "\\lyrics"
 
 def SaveLyrics(sp_song_id, lyrics_text):
+    if lyrics_text is None or lyrics_text == '':
+        return False
     full_file_path = LYRICS_FOLDER + "\\" + sp_song_id + ".lrc"
     #checks if folder exists
     if(os.path.isdir(LYRICS_FOLDER) == False):
