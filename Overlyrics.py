@@ -23,14 +23,14 @@ import logging
 
 # Global queue to handle Tkinter updates in the main thread
 update_queue = queue.Queue()
-
+pyglet.options['win32_gdi_font'] = True
 # Main global variables
 # Font global variables
 #----------------
 #TODO: change this variables to read them from a config file saving latest options used.
 selected_theme = "LIGHT" # Default selected theme
 main_color = "#00FFFF" # Default selected color for the actual verse that is playing
-used_font = 'Roboto'
+used_font = 'Circular SP Vietnamese'
 used_font_size = 22
 font_weight = 'bold'
 lines_per_lyrics = 3 # Lines to show per lyrics (make sure that is always an odd number and not more than 15 or it'll be 3 as default)
@@ -87,8 +87,8 @@ def create_overlay_text():
     
     for i in range(lines_per_lyrics):
         fg_color = main_color if i == middle_index else "#dfe0eb"
-        text_label = tk.Label(root, text="", fg=fg_color, bg="#010311")
-        text_label.configure(font=font_tuple)
+        text_label = tk.Label(root, text="", fg=fg_color, bg="#010311", font=font_tuple)
+        #text_label.configure(font=font_tuple)
         text_label.pack()
         text_labels.append(text_label)
     
@@ -343,7 +343,7 @@ def font_change_confirm(win, value):
     global used_font, font_tuple, used_font_size, font_weight
     print(value)
     font_file = ttLib.TTFont(FONT_FOLDER + "\\" + value)
-    fontFamilyName = font_file['name'].getDebugName(1)
+    fontFamilyName = font_file['name'].getDebugName(4)
     used_font = fontFamilyName
     font_tuple = (used_font, used_font_size, font_weight)
     #create_overlay_text()
@@ -413,8 +413,7 @@ def update_gui_texts(verses_data):
     print(f"Updating GUI: {verses}") if VERBOSE_MODE else None
     for i, verse in enumerate(verses):
         if i < len(overlay_text_labels):
-            overlay_text_labels[i].config(text=verse)
-            overlay_text_labels[i].configure(font=font_tuple)
+            overlay_text_labels[i].config(text=verse, font=font_tuple)
     overlay_root.update()
 
 def process_queue():
@@ -622,8 +621,8 @@ parsed_lyrics = {}
 time_str = ""
 timestampsInSeconds = []
 
-init()
 load_fonts_from_folder()
+init()
 
 overlay_root, overlay_text_labels = create_overlay_text()
 overlay_root.update()
