@@ -28,6 +28,7 @@ update_queue = queue.Queue()
 #----------------
 #TODO: change this variables to read them from a config file saving latest options used. 
 selected_theme = "LIGHT" # Default selected theme
+main_color = "#00FFFF" # Default selected color for the actual verse that is playing
 used_font = 'comic'
 used_font_size = 22
 font_weight = 'bold'
