@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
 
 import tkinter as tk
+import tkinter.font as font
+from tkinter import messagebox, OptionMenu
+from tkinter import simpledialog
+from tkinter import colorchooser
 import time
 from datetime import datetime
 import re
 import threading
 import queue
 import sys
-from tkinter import messagebox, OptionMenu
-import tkinter.font as font
 from spotify import *
 import queue
-from tkinter import simpledialog
 from apicallspotify import *
 from lyricsSaver import *
 import pyglet
@@ -27,8 +28,7 @@ update_queue = queue.Queue()
 #----------------
 #TODO: change this variables to read them from a config file saving latest options used. 
 selected_theme = "LIGHT" # Default selected theme
-selected_main_color = "MAGENTA" # Default selected main color
-used_font = 'Roboto'
+used_font = 'comic'
 used_font_size = 22
 font_weight = 'bold'
 lines_per_lyrics = 3 # Lines to show per lyrics (make sure that is always an odd number and not more than 15 or it'll be 3 as default)
@@ -38,7 +38,6 @@ display_offset_ms = 200 # Offset in milliseconds to show the actual lyrics
 
 light_color = "#BBBBBB" # Default selected color for light theme
 dark_color = "#404040" # Default selected color for dark theme
-main_color = "#FF00FF" # Default selected color for the actual verse that is playing
 font_tuple = (used_font, used_font_size, font_weight)
 button_canvas = None
 canvas2 = None
@@ -70,6 +69,12 @@ def create_overlay_text():
     root.title("Overlyrics")
     root.wm_attributes('-transparentcolor', root['bg'])
 
+    # Set minimum width and height
+    min_width = 300
+    min_height = 100
+    root.minsize(min_width, min_height)
+
+    # Set an upper indentation based in the font size between the top left canvases and the lyrics
     custom_bar_font = font.Font(family="Arial", size="12", weight="normal")
     upper_bar = tk.Label(root, text="", font=custom_bar_font, fg="#dfe0eb", bg="#010311")
     upper_bar.pack()
@@ -144,7 +149,6 @@ def on_back_click(event, root):
     global isPaused
     if dragging is False:
         back_playback()
-    # Add your logic here
 
 def on_play_pause_click(event, root):
     if dragging is False:
@@ -152,22 +156,17 @@ def on_play_pause_click(event, root):
             start_resume_playback()
         else:
             pause_playback()
-    # Add your logic here
 
 def on_next_click(event, root):
     if dragging is False:
         next_playback()
-    # Add your logic here
 
 def on_right_click(event):
     global selected_theme, main_color, overlay_root
     menu = tk.Menu(overlay_root, tearoff=0)
     
-    if selected_main_color == "MAGENTA":
-        menu.add_command(label="Cyan", command=switch_main_color_cyan)
-    else:
-        menu.add_command(label="Magenta", command=switch_main_color_magenta)
-        
+    menu.add_command(label="Choose Color", command=set_color)
+    
     if selected_theme == "DARK":
         menu.add_command(label="Light Theme", command=switch_to_light_theme)
     else:
@@ -225,25 +224,17 @@ def on_window_move_end(event, root):
     # This is to handle any cleanup after dragging ends, if needed
     pass
     
-def switch_main_color_cyan():
-    global main_color, overlay_text_labels, selected_main_color
-    selected_main_color = "CYAN"
-    main_color = "#00FFFF"
-    middle_index = len(overlay_text_labels) // 2
-    for i, label in enumerate(overlay_text_labels):
-        if i == middle_index:
-            label.config(fg=main_color)
-    overlay_root.update()
-
-def switch_main_color_magenta():
-    global main_color, overlay_text_labels, selected_main_color
-    selected_main_color = "MAGENTA"
-    main_color = "#FF00FF"
-    middle_index = len(overlay_text_labels) // 2
-    for i, label in enumerate(overlay_text_labels):
-        if i == middle_index:
-            label.config(fg=main_color)
-    overlay_root.update()
+def set_color():
+    global main_color, overlay_text_labels
+    
+    color_code = colorchooser.askcolor(title="Choose color")[1]
+    if color_code:
+        main_color = color_code
+        middle_index = len(overlay_text_labels) // 2
+        for i, label in enumerate(overlay_text_labels):
+            if i == middle_index:
+                label.config(fg=main_color)
+        overlay_root.update()
 
 def open_integer_input(text, min, max):
     value = simpledialog.askinteger(" ", text, minvalue=min, maxvalue=max)
