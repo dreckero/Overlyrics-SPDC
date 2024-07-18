@@ -8,3 +8,4 @@ readmes/*
 spotify.py
 spotify.py
 *.lrc
+cache.json

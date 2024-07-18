@@ -10,7 +10,7 @@ def SaveLyrics(sp_song_id, lyrics_text):
     if(os.path.isdir(LYRICS_FOLDER) == False):
         os.mkdir(LYRICS_FOLDER)
     #checks if song exists 
-    if(os.path.isfile(full_file_path) == False):
+    if(os.path.isfile(full_file_path) == False and lyrics_text is not None):
         #song doesn't exists. We create the song.
         f = open(full_file_path, "a", encoding='utf-8')
         f.write(lyrics_text)

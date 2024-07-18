@@ -7,24 +7,37 @@ import re
 import threading
 import queue
 import sys
-from tkinter import messagebox
+from tkinter import messagebox, OptionMenu
 import tkinter.font as font
 from spotify import *
 import queue
 from tkinter import simpledialog
 from apicallspotify import *
+from lyricsSaver import *
+import pyglet
+from os import listdir
+from os.path import isfile, join
+from fontTools import ttLib
 
 # Global queue to handle Tkinter updates in the main thread
 update_queue = queue.Queue()
 
-# Mian global variables
-
+# Main global variables
+# Font global variables
 #----------------
 selected_theme = "LIGHT" # Default selected theme
 selected_main_color = "MAGENTA" # Default selected main color
 light_color = "#BBBBBB" # Default selected color for light theme
 dark_color = "#404040" # Default selected color for dark theme
 main_color = "#FF00FF" # Default selected color for the actual verse that is playing
+used_font = 'Roboto'
+used_font_size = 22
+font_weight = 'bold'
+font_tuple = (used_font, used_font_size, font_weight)
+button_canvas = None
+canvas2 = None
+show_player = True
+root = None
 #----------------
 
 lines_per_lyrics = 3 # Lines to show per lyrics (make sure that is always an odd number and not more than 15 or it'll be 3 as default)
@@ -41,9 +54,10 @@ dragging = None
 VERBOSE_MODE = False  # If true, prints specific logs in the code (for debugging)
 CUSTOM_EXCEPT_HOOK = True  # If active, errors appear in customized window
 PERIOD_TO_UPDATE_TRACK_INFO = 0.1  # Updates the displaying verses every PERIOD_TO_UPDATE_TRACK_INFO seconds
+FONT_FOLDER = str(pathlib.Path(__file__).parent.resolve()) + "\\fonts"
 
 def create_overlay_text():
-    global main_color, selected_theme, lines_per_lyrics, custom_font
+    global main_color, selected_theme, lines_per_lyrics, custom_font, font_tuple, button_canvas, canvas2, show_player, root
     
     if lines_per_lyrics not in [1, 3, 5, 7, 9, 11, 13, 15]:
         lines_per_lyrics = 3
@@ -55,7 +69,7 @@ def create_overlay_text():
     root.configure(bg="#010311")
     root.title("Overlyrics")
     root.wm_attributes('-transparentcolor', root['bg'])
-
+    
     try:
         custom_font = font.Font(family="Public Sans", size=22, weight="normal")
     except tk.TclError:
@@ -72,10 +86,43 @@ def create_overlay_text():
     for i in range(lines_per_lyrics):
         fg_color = main_color if i == middle_index else "#dfe0eb"
         text_label = tk.Label(root, text="", font=custom_font, fg=fg_color, bg="#010311")
+        text_label.configure(font=font_tuple)
         text_label.pack()
         text_labels.append(text_label)
     
-    # Create canvas for buttons
+    if show_player:
+        # Create canvas for buttons
+        init_player_canvas()
+    else:
+        init_generic_canvas()
+
+    root.bind("<ButtonPress-1>", lambda event: on_drag_start(event, root))
+    root.bind("<B1-Motion>", on_dragging)
+    root.bind("<ButtonRelease-1>", lambda event: on_window_move_end(event, root))
+    root.bind("<Button-3>", on_right_click)
+    
+    return root, text_labels
+
+def get_fonts_from_folder():
+    fonts = []
+    if(os.path.isdir(FONT_FOLDER) == False):
+        #No folder for fonts found
+        return fonts
+    files = [f for f in listdir(FONT_FOLDER) if isfile(join(FONT_FOLDER, f))]
+    for file in files:
+        if file.endswith('.ttf'):
+            fonts.append(file)
+    return fonts
+# -------------------------------------
+# Menu functions
+# -------------------------------------
+def init_generic_canvas():
+    global canvas2, root
+    canvas2 = tk.Canvas(root, width=20, height=15, bg="#AAAAAA", highlightthickness=0) #width=root.winfo_screenwidth()
+    canvas2.place(x=0, y=0)
+
+def init_player_canvas():
+    global button_canvas, root
     button_canvas = tk.Canvas(root, width=100, height=20, bg="#010311", highlightthickness=0)
     button_canvas.place(x=0, y=0)
 
@@ -85,7 +132,6 @@ def create_overlay_text():
     button_canvas.tag_bind(left_arrow, "<ButtonPress-1>", lambda event: on_drag_start(event, root))
     button_canvas.tag_bind(left_arrow, "<B1-Motion>", on_dragging)
     button_canvas.tag_bind(left_arrow, "<ButtonRelease-1>", lambda event: on_back_click(event, root))
-
     # Create play/pause button (circle)
     play_pause_button = button_canvas.create_oval(15, 2, 31, 18, fill="#AAAAAA")
     button_canvas.tag_bind(play_pause_button, "<ButtonPress-1>", lambda event: on_drag_start(event, root))
@@ -98,17 +144,6 @@ def create_overlay_text():
     button_canvas.tag_bind(right_arrow, "<ButtonPress-1>", lambda event: on_drag_start(event, root))
     button_canvas.tag_bind(right_arrow, "<B1-Motion>", on_dragging)
     button_canvas.tag_bind(right_arrow, "<ButtonRelease-1>", lambda event: on_next_click(event, root))
-    
-    root.bind("<ButtonPress-1>", lambda event: on_drag_start(event, root))
-    root.bind("<B1-Motion>", on_dragging)
-    root.bind("<ButtonRelease-1>", lambda event: on_window_move_end(event, root))
-    root.bind("<Button-3>", on_right_click)
-    
-    return root, text_labels
-
-# -------------------------------------
-# Menu functions
-# -------------------------------------
 
 def on_back_click(event, root):
     global isPaused
@@ -147,7 +182,8 @@ def on_right_click(event):
     menu.add_command(label="Set lyrics offset", command=change_display_offset_ms)
     menu.add_command(label="Set transparency", command=change_transparency)
     menu.add_command(label="Set lines per lyrics", command=change_lines_per_lyrics)
-    
+    menu.add_command(label="Switch to player/square", command=switch_player_square)
+    menu.add_command(label="Change Font", command=change_font)
     menu.add_separator()
     menu.add_command(label="Close", command=close_application)
     
@@ -267,6 +303,58 @@ def change_lines_per_lyrics():
         overlay_text_labels.append(text_label)
     
     overlay_root.update()
+
+def switch_player_square():
+    global canvas2, button_canvas, show_player
+    
+    if show_player:
+        button_canvas.place_forget()
+        init_generic_canvas()
+        show_player = False
+    else:
+        canvas2.place_forget()
+        init_player_canvas()
+        show_player = True
+    
+    overlay_root.update()
+
+def change_font():
+    global root
+    win = tk.Toplevel()
+    win.wm_title("Change Font")
+
+    #calculates geometry of screen to appear in middle
+    w = 200 # width for the Tk root
+    h = 100 # height for the Tk root
+    # get screen width and height
+    ws = win.winfo_screenwidth() # width of the screen
+    hs = win.winfo_screenheight() # height of the screen   
+    # calculate x and y coordinates for the Tk root window
+    x = (ws/2) - (w/2)
+    y = (hs/2) - (h/2)
+    win.geometry('%dx%d+%d+%d' % (w, h, x, y))
+    
+    #searches and fills list of fonts obtained from folder
+    fonts = get_fonts_from_folder()
+    valor = tk.StringVar(win, value='Select Font...')
+    drop = OptionMenu(win , valor , *fonts ) 
+    drop.grid(row=0, column=0)
+    b = tk.Button(win, text="Confirm", command= lambda: font_change_confirm(win, valor.get()))
+    b.grid(row=1, column=0)
+
+    win.grid_rowconfigure(0, weight=1)
+    win.grid_columnconfigure(0, weight=1)
+    overlay_root.update()
+
+def font_change_confirm(win, value):
+    global used_font, font_tuple, used_font_size, font_weight
+    print(value)
+    font_file = ttLib.TTFont(FONT_FOLDER + "\\" + value)
+    fontFamilyName = font_file['name'].getDebugName(1)
+    used_font = fontFamilyName
+    font_tuple = (used_font, used_font_size, font_weight)
+    #create_overlay_text()
+    win.destroy()
     
 def close_application():
     global update_track_info_condition
@@ -333,6 +421,7 @@ def update_gui_texts(verses_data):
     for i, verse in enumerate(verses):
         if i < len(overlay_text_labels):
             overlay_text_labels[i].config(text=verse)
+            overlay_text_labels[i].configure(font=font_tuple)
     overlay_root.update()
 
 def process_queue():
@@ -360,7 +449,7 @@ def getCurrentTrackInfo():
         track_name = current_track['item']['name']
         is_playing = current_track['is_playing']
         progress_ms = current_track['progress_ms']
-        
+        song_id = current_track['item']['id']
         
         # Convert progress_ms to minutes and seconds
         progress_sec = progress_ms // 1000
@@ -374,7 +463,8 @@ def getCurrentTrackInfo():
             'progressMin': progress_min,
             'progressSec': progress_sec,
             'isPlaying': is_playing,
-            'item': current_track['item']
+            'item': current_track['item'],
+            'song_id': song_id
         }
     except Exception as e:
         refresh_access_token()
@@ -383,18 +473,18 @@ def getCurrentTrackInfo():
 # Function to update song information
 def update_track_info():
     while update_track_info_condition:
-        global trackName, artistName, currentProgress, isPaused, item
-        trackName, artistName, currentProgress, isPaused, item = get_track_info()
+        global trackName, artistName, currentProgress, isPaused, item, song_id
+        trackName, artistName, currentProgress, isPaused, item, song_id = get_track_info()
         time.sleep(PERIOD_TO_UPDATE_TRACK_INFO)   # Wait PERIOD_TO_UPDATE_TRACK_INFO second before getting the information again
 
 # Function to get the useful song information
 def get_track_info():
-    global trackName, artistName, currentProgress, isPaused, item
+    global trackName, artistName, currentProgress, isPaused, item, song_id
 
     trackInfo = getCurrentTrackInfo()
 
     if(trackInfo is None):
-        trackName = artistName = currentProgress = isPaused = None
+        trackName = artistName = currentProgress = isPaused = song_id = None
     else:    
         previousTrackName = trackName
 
@@ -403,6 +493,7 @@ def get_track_info():
         currentProgress = trackInfo['progressMin'] * 60 + trackInfo['progressSec']
         isPaused = not trackInfo['isPlaying']
         item = trackInfo['item']
+        song_id = trackInfo['song_id']
 
         print("get_track_info(): ", trackName) if VERBOSE_MODE else None
         if((previousTrackName != trackName) and (trackName != None) and (trackName != " ")):
@@ -413,7 +504,7 @@ def get_track_info():
 
     update_event.set()  # Flag that variables have been updated
 
-    return trackName, artistName, currentProgress, isPaused, item
+    return trackName, artistName, currentProgress, isPaused, item, song_id
 
 def update_display():
     while update_track_info_condition:
@@ -473,10 +564,14 @@ def display_lyrics(trackName, artistName, currentProgress, isPausedm, item):
             # If the track has changed, than the new lyrics will be searched and the windows will be updated
             update_track_event.clear()
 
-            searchTerm = "{} {}".format(trackName, artistName)
-            #print("buscando lyrics de " + searchTerm)
-            #lyrics = syncedlyrics.search(searchTerm)
-            lyrics = GetLyricsOfCurrentSong(item)
+            #searches for the song in the song folder, if it doesn't exists then it saves it.
+            searchOnFolder = SearchLyricsOnFolder(song_id)
+            if(searchOnFolder['result']):
+                lyrics = searchOnFolder['lyrics']
+            else:
+                lyrics = GetLyricsOfCurrentSong(item)
+                SaveLyrics(song_id, lyrics)
+                
             set_progress_ms(0)
             #print(lyrics)
             if (lyrics is None or lyrics.isspace()):
@@ -511,6 +606,12 @@ def custom_excepthook(exctype, value, traceback): # If activated, execution time
     messagebox.showerror("Overlyrics: Error", f"The following error occurred: {value}")
     root.destroy()
 
+def load_fonts_from_folder():
+    fonts = get_fonts_from_folder()
+    for f in fonts:
+        font_dir = FONT_FOLDER + "\\" + f
+        pyglet.font.add_file(font_dir)
+
 # Custom excepthook if activated 
 if CUSTOM_EXCEPT_HOOK == True:
     sys.excepthook = custom_excepthook
@@ -529,6 +630,7 @@ time_str = ""
 timestampsInSeconds = []
 
 init()
+load_fonts_from_folder()
 
 overlay_root, overlay_text_labels = create_overlay_text()
 overlay_root.update()

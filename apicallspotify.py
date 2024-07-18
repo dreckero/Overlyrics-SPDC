@@ -11,7 +11,7 @@ import tkinter as tk
 from tkinter import simpledialog
 
 # Global variables
-client_id = 'b20f0802c77540a0963048cc394ec998'
+client_id = 'b8b25b07b616497b86b1ce40bd2ef2c6'
 redirect_uri = 'http://localhost:8080/callback'
 scope ='user-read-playback-state user-read-email user-read-private user-modify-playback-state'
 token_url = 'https://accounts.spotify.com/api/token'
@@ -21,16 +21,24 @@ api_url = 'https://api.spotify.com/v1/me'
 VERBOSE_MODE = False  # If true, prints specific logs in the code (for debugging)
 
 def init():
-    global code_verifier, code_challenge, auth_url, authorization_code, token_response
     resp = load_from_cache()
-    _access_token = resp.get('access_token')
-    _refresh_token = resp.get('refresh_token')
-    if resp is None or _access_token is None or _refresh_token is None:
-        code_verifier = generate_code_verifier()
-        code_challenge = generate_code_challenge(code_verifier)
-        auth_url = get_authorization_url()
-        authorization_code = get_auth_code()
-        token_response = get_access_token()
+    #if file does not existe generates cache file
+    if resp is None:
+        generateCacheFile()
+    else:
+        _access_token = resp.get('access_token')
+        _refresh_token = resp.get('refresh_token')
+        #if file exists but tokens doesn't then updates cache file
+        if _access_token is None or _refresh_token is None:
+            generateCacheFile()
+
+def generateCacheFile():
+    global code_verifier, code_challenge, auth_url, authorization_code, token_response
+    code_verifier = generate_code_verifier()
+    code_challenge = generate_code_challenge(code_verifier)
+    auth_url = get_authorization_url()
+    authorization_code = get_auth_code()
+    token_response = get_access_token()
 
 def generate_code_verifier(length=128):
     possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
