@@ -19,6 +19,7 @@ import pyglet
 from os import listdir
 from os.path import isfile, join
 from fontTools import ttLib
+import logging
 
 # Global queue to handle Tkinter updates in the main thread
 update_queue = queue.Queue()
@@ -29,7 +30,7 @@ update_queue = queue.Queue()
 #TODO: change this variables to read them from a config file saving latest options used.
 selected_theme = "LIGHT" # Default selected theme
 main_color = "#00FFFF" # Default selected color for the actual verse that is playing
-used_font = 'Circular Sp Vietnamese'
+used_font = 'Roboto'
 used_font_size = 22
 font_weight = 'bold'
 lines_per_lyrics = 3 # Lines to show per lyrics (make sure that is always an odd number and not more than 15 or it'll be 3 as default)
@@ -101,6 +102,10 @@ def create_overlay_text():
     root.bind("<B1-Motion>", on_dragging)
     root.bind("<ButtonRelease-1>", lambda event: on_window_move_end(event, root))
     root.bind("<Button-3>", on_right_click)
+    
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(filename='D:\\temp\\Log.txt', encoding='utf-8', level=logging.DEBUG)
+    logger.debug(FONT_FOLDER)
     
     return root, text_labels
 

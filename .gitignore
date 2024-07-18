@@ -9,3 +9,4 @@ spotify.py
 spotify.py
 *.lrc
 cache.json
+dist/*
