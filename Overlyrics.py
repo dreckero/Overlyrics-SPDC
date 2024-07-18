@@ -26,10 +26,10 @@ update_queue = queue.Queue()
 # Main global variables
 # Font global variables
 #----------------
-#TODO: change this variables to read them from a config file saving latest options used. 
+#TODO: change this variables to read them from a config file saving latest options used.
 selected_theme = "LIGHT" # Default selected theme
 main_color = "#00FFFF" # Default selected color for the actual verse that is playing
-used_font = 'comic'
+used_font = 'Circular Sp Vietnamese'
 used_font_size = 22
 font_weight = 'bold'
 lines_per_lyrics = 3 # Lines to show per lyrics (make sure that is always an odd number and not more than 15 or it'll be 3 as default)

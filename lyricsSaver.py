@@ -23,7 +23,7 @@ def SearchLyricsOnFolder(sp_song_id):
     full_file_path = LYRICS_FOLDER + "\\" + sp_song_id + ".lrc"
     if(os.path.isfile(full_file_path)):
         #song exists. we return the content from the file
-        f = open(full_file_path, "r")
+        f = open(full_file_path, "r", encoding='utf-8')
         return {
             'lyrics': f.read(),
             'result': True
