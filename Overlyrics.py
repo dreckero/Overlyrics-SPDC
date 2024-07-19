@@ -293,7 +293,7 @@ def change_lines_per_lyrics():
     
     for i in range(lines_per_lyrics):
         fg_color = main_color if i == middle_index else "#dfe0eb"
-        text_label = tk.Label(overlay_root, text="", font=custom_font, fg=fg_color, bg="#010311")
+        text_label = tk.Label(overlay_root, text="", fg=fg_color, bg="#010311")
         text_label.pack()
         overlay_text_labels.append(text_label)
     
@@ -488,9 +488,9 @@ def update_track_info():
         # Update progress internally
         if current_time - last_update_time >= PROGRESS_UPDATE_PERIOD:
             if isPaused:
-                currentProgress = currentProgress  # Keep the same if paused
+                currentProgress = currentProgress # Keep the same if paused
             else:
-                currentProgress += PROGRESS_UPDATE_PERIOD  # Simulate progress
+                currentProgress = currentProgress + PROGRESS_UPDATE_PERIOD if currentProgress is not None else 0 # Simulate progress
 
             trackName, artistName, currentProgress, isPaused, item, song_id = get_track_info(get_current_first_time)
             if get_current_first_time:
