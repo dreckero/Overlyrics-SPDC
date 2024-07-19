@@ -153,7 +153,7 @@ def get_currently_playing():
         if response_data:
             progress_ms = response_data.get('progress_ms')
         get_devices()
-        print('get_currently_playing')
+        # print('get_currently_playing')
         return response_data
     except Exception as e:
         print(f'Exception in get_currently_playing:\n{e}') if VERBOSE_MODE else None
