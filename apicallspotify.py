@@ -11,7 +11,7 @@ import tkinter as tk
 from tkinter import simpledialog
 
 # Global variables
-client_id = 'b8b25b07b616497b86b1ce40bd2ef2c6'
+client_id = 'b20f0802c77540a0963048cc394ec998'
 redirect_uri = 'http://localhost:8080/callback'
 scope ='user-read-playback-state user-read-email user-read-private user-modify-playback-state'
 token_url = 'https://accounts.spotify.com/api/token'
@@ -83,11 +83,7 @@ def get_access_token():
     access_token = response_data.get('access_token')
     refresh_token = response_data.get('refresh_token')
     
-    save_to_cache({
-        'access_token': access_token,
-        'refresh_token': refresh_token,
-        'sp_dc': sp_dc
-    })
+    save_cache()
     
     return response_data
 
@@ -107,11 +103,7 @@ def refresh_access_token():
     access_token = data.get('access_token')
     refresh_token = data.get('refresh_token')
     
-    save_to_cache({
-        'access_token': access_token,
-        'refresh_token': refresh_token,
-        'sp_dc': sp_dc
-    })
+    save_cache()
     
     return data
 
@@ -132,6 +124,10 @@ def request_to_spotify(method, url, headers, params=None):
             print("No content - Spotify is not open or no track is playing.") if VERBOSE_MODE else None
             return None
 
+        if response.status_code == 429:
+            print("Too many requests.") if VERBOSE_MODE else None
+            return None
+        
         if response.status_code != 200:
             print(f"Error: {response.status_code}") if VERBOSE_MODE else None
             refresh_access_token()
@@ -157,6 +153,7 @@ def get_currently_playing():
         if response_data:
             progress_ms = response_data.get('progress_ms')
         get_devices()
+        print('get_currently_playing')
         return response_data
     except Exception as e:
         print(f'Exception in get_currently_playing:\n{e}') if VERBOSE_MODE else None
@@ -250,11 +247,7 @@ def get_auth_code():
     # Serve until we get the authorization code
     httpd.handle_request()
     
-    # Open a Tkinter window to ask for the sp_dc cookie
-    root = tk.Tk()
-    root.withdraw()  # Hide the main window
-    sp_dc = simpledialog.askstring("Input", "Please enter the 'sp_dc' cookie value from your browser:")
-    root.destroy()
+    ask_sp_dc()
     
     auth_code = httpd.auth_code
     return auth_code
@@ -262,6 +255,14 @@ def get_auth_code():
 def save_to_cache(data, filename='cache.json'):
     with open(filename, 'w') as cache_file:
         json.dump(data, cache_file, indent=4)
+
+def save_cache():
+    global access_token, refresh_token, sp_dc
+    save_to_cache({
+        'access_token': access_token,
+        'refresh_token': refresh_token,
+        'sp_dc': sp_dc
+    })
 
 def load_from_cache(filename='cache.json'):
     global access_token, refresh_token, sp_dc
@@ -286,6 +287,69 @@ def get_progress_ms():
     global progress_ms
     return progress_ms
 
+def ask_sp_dc():
+    global sp_dc
+    # Open a Tkinter window to ask for the sp_dc cookie
+    root = tk.Tk()
+    root.withdraw()  # Hide the main window
+    sp_dc = simpledialog.askstring("Input", "Please enter the 'sp_dc' cookie value from your browser:")
+    save_cache()
+    root.destroy()
+
+def get_lyrics(track_id):
+    headers = {
+        'authorization': f'Bearer {access_token}',
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.41 Safari/537.36',
+        'app-platform': 'WebPlayer'
+    }
+    params = {
+        'format': 'json',
+        'market': 'from_token',
+    }
+    response = requests.get(f'https://spclient.wg.spotify.com/color-lyrics/v2/track/{track_id}', headers=headers, json=params)
+    try:
+        response_data = response.json()
+    except ValueError:
+        print("Response content is not valid JSON") if VERBOSE_MODE else None
+        return None
+    print(response_data)
+    return response_data
+
+# -----------------------------------------------
+
+def init_syrics():
+    global session, sp_dc
+    session = requests.Session()
+    session.cookies.set('sp_dc', sp_dc)
+    session.headers['User-Agent'] = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.41 Safari/537.36'
+    session.headers['app-platform'] = 'WebPlayer'
+    login_syrics()
+        
+def login_syrics():
+        try:
+            global session
+            req = session.get('https://open.spotify.com/get_access_token?reason=transport&productType=web_player', allow_redirects=False)
+            req_json = req.json()
+            token = req_json.get('accessToken')
+            session.headers['authorization'] = f"Bearer {token}"
+        except Exception as e:
+            print(f'Exception in login_syrics:\n{e}') if VERBOSE_MODE else None
+        
+def get_lyrics_syrics(track_id: str):
+    global session
+    init_syrics()
+    params = 'format=json&market=from_token'
+    req = session.get(f'https://spclient.wg.spotify.com/color-lyrics/v2/track/{track_id}', params=params)
+    
+    if req.status_code == 200:
+        return req.json()
+    elif req.status_code == 401:
+        print('sp_dc invalid!')
+    else:
+        None
+    
+# -----------------------------------------------
+
 # Global variables
 access_token = ''
 refresh_token = ''
@@ -297,6 +361,7 @@ authorization_code = ''
 token_response = ''
 device_id = ''
 progress_ms = 0
+session = None
 
 # init()
 # me_response = get_currently_playing()

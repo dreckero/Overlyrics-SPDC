@@ -55,6 +55,8 @@ dragging = None
 VERBOSE_MODE = False  # If true, prints specific logs in the code (for debugging)
 CUSTOM_EXCEPT_HOOK = True  # If active, errors appear in customized window
 PERIOD_TO_UPDATE_TRACK_INFO = 0.1  # Updates the displaying verses every PERIOD_TO_UPDATE_TRACK_INFO seconds
+PROGRESS_UPDATE_PERIOD = 0.1  # seconds
+PROGRESS_UPDATE_INTERVAL = 1  # seconds
 FONT_FOLDER = str(pathlib.Path(__file__).parent.resolve()) + "\\fonts"
 
 def create_overlay_text():
@@ -426,54 +428,86 @@ def process_queue():
     overlay_root.after(100, process_queue)  # Check the queue every 100 ms
 
 
-def getCurrentTrackInfo():
+def getCurrentTrackInfo(update_from_spotify):
+    global trackName, artistName, currentProgress, isPaused, item, song_id
     try:
-        current_track = get_currently_playing() # Get the information of the music being listened to, through the API //ACA
+        if update_from_spotify:
+            current_track = get_currently_playing()  # Get the information of the music being listened to, through the API
 
-        # Check if there is music playing
-        if current_track is None or (current_track['item'] is None):
-            return None  # No track is currently playing
-            # NOTE: When the song is changed by the search bar, current_track['item'] initially does not exist.
-            # This conditional prevents this from generating an error.
-        
-        # Extracts relevant information from the track
-        artist = current_track['item']['artists'][0]['name']
-        track_name = current_track['item']['name']
-        is_playing = current_track['is_playing']
-        progress_ms = current_track['progress_ms']
-        song_id = current_track['item']['id']
-        
-        # Convert progress_ms to minutes and seconds
-        progress_sec = progress_ms // 1000
-        progress_min = progress_sec // 60
-        progress_sec %= 60
-        
-        # Return
-        return {
-            'artist': artist,
-            'trackName': track_name,
-            'progressMin': progress_min,
-            'progressSec': progress_sec,
-            'isPlaying': is_playing,
-            'item': current_track['item'],
-            'song_id': song_id
-        }
+            # Check if there is music playing
+            if current_track is None or (current_track['item'] is None):
+                return None  # No track is currently playing
+
+            # Extract relevant information from the track
+            artist = current_track['item']['artists'][0]['name']
+            track_name = current_track['item']['name']
+            is_playing = current_track['is_playing']
+            progress_ms = current_track['progress_ms']
+            song_id = current_track['item']['id']
+
+            # Convert progress_ms to minutes and seconds
+            progress_sec = progress_ms // 1000
+            progress_min = progress_sec // 60
+            progress_sec %= 60
+
+            # Return
+            return {
+                'artist': artist,
+                'trackName': track_name,
+                'progressMin': progress_min,
+                'progressSec': progress_sec,
+                'isPlaying': is_playing,
+                'item': current_track['item'],
+                'song_id': song_id
+            }
+        else:
+            return {
+                'artist': artistName,
+                'trackName': trackName,
+                'progressMin': currentProgress // 60,
+                'progressSec': currentProgress % 60,
+                'isPlaying': not isPaused,
+                'item': item,
+                'song_id': song_id
+            }
     except Exception as e:
         refresh_access_token()
-        getCurrentTrackInfo()
+        return getCurrentTrackInfo(update_from_spotify)
 
 # Function to update song information
 def update_track_info():
+    global trackName, artistName, currentProgress, isPaused, item, song_id, get_current_first_time
+
+    last_update_time = time.time()
+    next_spotify_update = time.time() + PROGRESS_UPDATE_INTERVAL
+
     while update_track_info_condition:
-        global trackName, artistName, currentProgress, isPaused, item, song_id
-        trackName, artistName, currentProgress, isPaused, item, song_id = get_track_info()
-        time.sleep(PERIOD_TO_UPDATE_TRACK_INFO)   # Wait PERIOD_TO_UPDATE_TRACK_INFO second before getting the information again
+        current_time = time.time()
+
+        # Update progress internally
+        if current_time - last_update_time >= PROGRESS_UPDATE_PERIOD:
+            if isPaused:
+                currentProgress = currentProgress  # Keep the same if paused
+            else:
+                currentProgress += PROGRESS_UPDATE_PERIOD  # Simulate progress
+
+            trackName, artistName, currentProgress, isPaused, item, song_id = get_track_info(get_current_first_time)
+            if get_current_first_time:
+                get_current_first_time = False
+            last_update_time = current_time
+
+        # Update from Spotify periodically
+        if current_time >= next_spotify_update:
+            trackName, artistName, currentProgress, isPaused, item, song_id = get_track_info(True)
+            next_spotify_update = current_time + PROGRESS_UPDATE_INTERVAL
+
+        time.sleep(PERIOD_TO_UPDATE_TRACK_INFO)  # Wait before the next loop iteration
 
 # Function to get the useful song information
-def get_track_info():
+def get_track_info(consumeSpotifyAPI):
     global trackName, artistName, currentProgress, isPaused, item, song_id
 
-    trackInfo = getCurrentTrackInfo()
+    trackInfo = getCurrentTrackInfo(consumeSpotifyAPI)
 
     if(trackInfo is None):
         trackName = artistName = currentProgress = isPaused = song_id = None
@@ -562,7 +596,8 @@ def display_lyrics(trackName, artistName, currentProgress, isPausedm, item):
                 lyrics = searchOnFolder['lyrics']
             else:
                 lyrics = GetLyricsOfCurrentSong(item)
-                SaveLyrics(song_id, lyrics)
+                if lyrics:
+                    SaveLyrics(song_id, lyrics)
                 
             set_progress_ms(0)
             #print(lyrics)
@@ -615,6 +650,7 @@ currentProgress = 0
 isPaused = False
 item = ''
 actualVerse = ""
+get_current_first_time = True
 
 actualTrackLyrics = ""
 parsed_lyrics = {}

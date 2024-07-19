@@ -7,12 +7,13 @@ lyrics_url = "https://spclient.wg.spotify.com/color-lyrics/v2/track/"
 
 def GetLyricsOfCurrentSong(item):
     try:
-        sp = Spotify(get_sp_dc())
-        lyrics =  sp.get_lyrics(item['id'])
+        # sp = Spotify(get_sp_dc())
+        # lyrics =  sp.get_lyrics(item['id'])
+        lyrics = get_lyrics_syrics(item['id'])
         return format_lrc_local(lyrics, item)
     except Exception as e:
-        sp = Spotify(get_sp_dc())
-        return ''
+        # sp = Spotify(get_sp_dc())
+        return None
 
 def format_lrc_local(lyrics_json, track_data):
     try:
