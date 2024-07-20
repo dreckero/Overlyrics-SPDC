@@ -30,6 +30,7 @@ pyglet.options['win32_gdi_font'] = True
 #TODO: change this variables to read them from a config file saving latest options used.
 selected_theme = "LIGHT" # Default selected theme
 main_color = "#00FFFF" # Default selected color for the actual verse that is playing
+theme_color = "#AAAAAA"
 used_font = 'Circular SP Vietnamese'
 used_font_size = 22
 font_weight = 'bold'
@@ -139,79 +140,89 @@ def init_player_canvas():
     left_arrow = button_canvas.create_polygon(left_arrow_points, fill="#AAAAAA")
     button_canvas.tag_bind(left_arrow, "<ButtonPress-1>", lambda event: on_drag_start(event, root))
     button_canvas.tag_bind(left_arrow, "<B1-Motion>", on_dragging)
-    button_canvas.tag_bind(left_arrow, "<ButtonRelease-1>", lambda event: on_back_click(event, root))
+    button_canvas.tag_bind(left_arrow, "<ButtonRelease-1>", lambda event: on_back_click(event, root, left_arrow))
     # Create play/pause button (circle)
     play_pause_button = button_canvas.create_oval(15, 2, 31, 18, fill="#AAAAAA")
     button_canvas.tag_bind(play_pause_button, "<ButtonPress-1>", lambda event: on_drag_start(event, root))
     button_canvas.tag_bind(play_pause_button, "<B1-Motion>", on_dragging)
-    button_canvas.tag_bind(play_pause_button, "<ButtonRelease-1>", lambda event: on_play_pause_click(event, root))
+    button_canvas.tag_bind(play_pause_button, "<ButtonRelease-1>", lambda event: on_play_pause_click(event, root, play_pause_button))
 
     # Create right arrow button
     right_arrow_points = [36, 0, 46, 10, 36, 20]
     right_arrow = button_canvas.create_polygon(right_arrow_points, fill="#AAAAAA")
     button_canvas.tag_bind(right_arrow, "<ButtonPress-1>", lambda event: on_drag_start(event, root))
     button_canvas.tag_bind(right_arrow, "<B1-Motion>", on_dragging)
-    button_canvas.tag_bind(right_arrow, "<ButtonRelease-1>", lambda event: on_next_click(event, root))
+    button_canvas.tag_bind(right_arrow, "<ButtonRelease-1>", lambda event: on_next_click(event, root, right_arrow))
 
-def on_back_click(event, root):
-    global isPaused
+def on_back_click(event, root, left_arrow):
     if dragging is False:
+        paint_main_color(left_arrow)
         back_playback()
+        pain_theme_color(left_arrow)
 
-def on_play_pause_click(event, root):
+def on_play_pause_click(event, root, play_pause_button):
     if dragging is False:
+        paint_main_color(play_pause_button)
         if isPaused:
             start_resume_playback()
         else:
             pause_playback()
+        pain_theme_color(play_pause_button)
 
-def on_next_click(event, root):
+def on_next_click(event, root, right_arrow):
     if dragging is False:
+        paint_main_color(right_arrow)
         next_playback()
+        pain_theme_color(right_arrow)
+        
+
+def paint_main_color(button_id):
+    button_canvas.itemconfig(button_id, fill=main_color)
+    overlay_root.update()
+    
+def pain_theme_color(button_id):
+    time.sleep(0.1)
+    button_canvas.itemconfig(button_id, fill=theme_color)
+    overlay_root.update()
 
 def on_right_click(event):
     global selected_theme, main_color, overlay_root
     menu = tk.Menu(overlay_root, tearoff=0)
     
-    menu.add_command(label="Choose Color", command=set_color)
-    
-    if selected_theme == "DARK":
-        menu.add_command(label="Light Theme", command=switch_to_light_theme)
-    else:
-        menu.add_command(label="Dark Theme", command=switch_to_dark_theme)
-    
-    menu.add_command(label="Set Font Size", command=change_font_size)
+    menu.add_command(label="Choose color", command=set_color)
+    menu.add_command(label="Switch theme", command=switch_theme)
+    menu.add_command(label="Set font size", command=change_font_size)
     menu.add_command(label="Set lyrics offset", command=change_display_offset_ms)
     menu.add_command(label="Set transparency", command=change_transparency)
     menu.add_command(label="Set lines per lyrics", command=change_lines_per_lyrics)
     menu.add_command(label="Switch to player/square", command=switch_player_square)
-    menu.add_command(label="Change Font", command=change_font)
+    menu.add_command(label="Change font", command=change_font)
     menu.add_separator()
     menu.add_command(label="Close", command=close_application)
     
     menu.post(event.x_root, event.y_root)
 
-def switch_to_light_theme():
-    global selected_theme, overlay_root, overlay_text_labels, main_color, light_color
-    selected_theme = "LIGHT"
+def switch_theme():
+    global selected_theme, overlay_root, overlay_text_labels, main_color, light_color, dark_color, theme_color, canvas2, button_canvas
+    if selected_theme == 'DARK':
+        selected_theme = 'LIGHT'
+        theme_color = light_color
+    else:
+        selected_theme = 'DARK'
+        theme_color = dark_color
+        
     middle_index = len(overlay_text_labels) // 2
     for i, label in enumerate(overlay_text_labels):
         if i != middle_index:
-            label.config(fg=light_color)
+            label.config(fg=theme_color)
         else:
             label.config(fg=main_color)
-            
-    overlay_root.update()
-
-def switch_to_dark_theme():
-    global selected_theme, overlay_root, overlay_text_labels, main_color, dark_color
-    selected_theme = "DARK"
-    middle_index = len(overlay_text_labels) // 2
-    for i, label in enumerate(overlay_text_labels):
-        if i != middle_index:
-            label.config(fg=dark_color)
-        else:
-            label.config(fg=main_color)
+    
+    canvas2.config(bg=theme_color)
+    items = button_canvas.find_all()
+    for item in items:
+        button_canvas.itemconfig(item, fill=theme_color)
+    
     overlay_root.update()
 
 def on_drag_start(event, root):
