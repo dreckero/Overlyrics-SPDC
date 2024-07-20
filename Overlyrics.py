@@ -218,10 +218,13 @@ def switch_theme():
         else:
             label.config(fg=main_color)
     
-    canvas2.config(bg=theme_color)
-    items = button_canvas.find_all()
-    for item in items:
-        button_canvas.itemconfig(item, fill=theme_color)
+    if show_player:
+        items = button_canvas.find_all()
+        for item in items:
+            button_canvas.itemconfig(item, fill=theme_color)
+    else:
+        canvas2.config(bg=theme_color)
+    
     
     overlay_root.update()
 
