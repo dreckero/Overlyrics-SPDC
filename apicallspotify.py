@@ -221,6 +221,19 @@ def back_playback():
     except Exception as e:
         print(f'Exception in get_currently_playing:\n{e}') if VERBOSE_MODE else None
 
+def volume_playback(volume):
+    try:
+        headers = {
+            'Authorization': f'Bearer {access_token}'
+        }
+        url = '/player/volume'
+        if device_id:
+            url = url + f'?volume_percent={volume}&device_id={device_id}'
+        response_data = request_to_spotify('PUT', url, headers)
+        return response_data
+    except Exception as e:
+        print(f'Exception in get_currently_playing:\n{e}') if VERBOSE_MODE else None
+
 def get_auth_code():
     class AuthRequestHandler(BaseHTTPRequestHandler):
         def do_GET(self):
