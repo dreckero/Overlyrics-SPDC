@@ -22,6 +22,7 @@ from fontTools import ttLib
 import logging
 import math
 from lrc_adjuster import *
+from config_loader import *
 
 # Global queue to handle Tkinter updates in the main thread
 update_queue = queue.Queue()
@@ -29,24 +30,24 @@ pyglet.options['win32_gdi_font'] = True
 # Main global variables
 # Font global variables
 #----------------
-#TODO: change this variables to read them from a config file saving latest options used.
-selected_theme = "LIGHT" # Default selected theme
-main_color = "#00FFFF" # Default selected color for the actual verse that is playing
-theme_color = "#BBBBBB"
-used_font = 'Circular SP Vietnamese'
-used_font_size = 22
-font_weight = 'bold'
-lines_per_lyrics = 3 # Lines to show per lyrics (make sure that is always an odd number and not more than 15 or it'll be 3 as default)
-transparency = 1.0 # Default transparency for the whole windows
+#creates the config file just in case, as a treat
+createInitConfig()
+selected_theme = getConfigValue("selected_theme") # Default selected theme
+main_color = getConfigValue("main_color") # Default selected color for the actual verse that is playing
+theme_color = getConfigValue("theme_color")
+used_font = getConfigValue("used_font")
+used_font_size = getConfigValue("used_font_size")
+font_weight = getConfigValue("font_weight")
+lines_per_lyrics = getConfigValue("lines_per_lyrics") # Lines to show per lyrics (make sure that is always an odd number and not more than 15 or it'll be 3 as default)
+transparency = getConfigValue("transparency") # Default transparency for the whole windows
+show_player = getConfigValue("show_player")
 dont_cut_title = True
-#END TODO
 
 light_color = "#BBBBBB" # Default selected color for light theme
 dark_color = "#404040" # Default selected color for dark theme
 font_tuple = (used_font, used_font_size, font_weight)
 button_canvas = None
 canvas2 = None
-show_player = True
 root = None
 #----------------
 update_track_info_condition = True # Use to stop the main loop
@@ -67,6 +68,7 @@ def create_overlay_text():
     
     if lines_per_lyrics not in [1, 3, 5, 7, 9, 11, 13, 15]:
         lines_per_lyrics = 3
+        configure("lines_per_lyrics", lines_per_lyrics)
     
     root = tk.Tk()
     root.attributes("-topmost", True)
@@ -188,7 +190,7 @@ def paint_main_color(button_id):
     overlay_root.update()
     
 def pain_theme_color(button_id):
-    time.sleep(0.1)
+    time.sleep(0.1) 
     button_canvas.itemconfig(button_id, fill=theme_color)
     overlay_root.update()
 
@@ -214,10 +216,14 @@ def switch_theme():
     global selected_theme, overlay_root, overlay_text_labels, main_color, light_color, dark_color, theme_color, canvas2, button_canvas
     if selected_theme == 'DARK':
         selected_theme = 'LIGHT'
+        configure("selected_theme", selected_theme)
         theme_color = light_color
+        configure("theme_color", theme_color)
     else:
         selected_theme = 'DARK'
+        configure("selected_theme", selected_theme)
         theme_color = dark_color
+        configure("theme_color", theme_color)
         
     middle_index = len(overlay_text_labels) // 2
     for i, label in enumerate(overlay_text_labels):
@@ -262,6 +268,7 @@ def set_color():
     color_code = colorchooser.askcolor(title="Choose color")[1]
     if color_code:
         main_color = color_code
+        configure("main_color", main_color)
         middle_index = len(overlay_text_labels) // 2
         for i, label in enumerate(overlay_text_labels):
             if i == middle_index:
@@ -281,6 +288,7 @@ def change_font_size():
     value = open_integer_input("Enter font size:", 8, 72)
     if value:
         used_font_size = value
+        configure("used_font_size", used_font_size)
         font_tuple = (used_font, used_font_size, font_weight)
         overlay_root.update()
         
@@ -301,6 +309,7 @@ def change_transparency():
     value = open_float_input("Enter offset:", 0.1, 1.0)
     if value:
         transparency = value
+        configure("transparency", transparency)
         overlay_root.attributes("-alpha", transparency)
         overlay_root.update()
         
@@ -311,8 +320,10 @@ def change_lines_per_lyrics():
     if value:
         if value not in [1, 3, 5, 7, 9, 11, 13, 15]:
             lines_per_lyrics = 3
+            configure("lines_per_lyrics", lines_per_lyrics)
         else:
             lines_per_lyrics = value
+            configure("lines_per_lyrics", lines_per_lyrics)
     
     for label in overlay_text_labels:
         label.destroy()  # Remove existing labels
@@ -339,6 +350,7 @@ def switch_player_square():
         canvas2.place_forget()
         init_player_canvas()
         show_player = True
+    configure("show_player", show_player)
     
     overlay_root.update()
 
@@ -372,14 +384,18 @@ def change_font():
     overlay_root.update()
 
 def font_change_confirm(win, value):
-    global used_font, font_tuple, used_font_size, font_weight
+    global used_font, font_tuple, used_font_size, font_weight, artist_song_label
     print(value)
     font_file = ttLib.TTFont(FONT_FOLDER + "\\" + value)
     fontFamilyName = font_file['name'].getDebugName(4)
     used_font = fontFamilyName
+    configure("used_font", used_font)
+    artist_song_font = font.Font(family=used_font, size="12", weight="normal")
+    artist_song_label.config(font=artist_song_font)
     font_tuple = (used_font, used_font_size, font_weight)
     #create_overlay_text()
     win.destroy()
+    overlay_root.update()
     
 def set_volume():
     value = open_integer_input("Enter volume:", 0, 100)
@@ -441,7 +457,6 @@ def update_overlay_text():
         update_queue.put((verses_to_queue, half_lines))
 
         lyrics_verse_event.set()
-
 
 def update_gui_texts(verses_data):
     global overlay_text_labels, artist_song_label
