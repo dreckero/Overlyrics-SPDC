@@ -21,6 +21,7 @@ from os.path import isfile, join
 from fontTools import ttLib
 import logging
 import math
+from lrc_adjuster import *
 
 # Global queue to handle Tkinter updates in the main thread
 update_queue = queue.Queue()
@@ -37,7 +38,6 @@ used_font_size = 22
 font_weight = 'bold'
 lines_per_lyrics = 3 # Lines to show per lyrics (make sure that is always an odd number and not more than 15 or it'll be 3 as default)
 transparency = 1.0 # Default transparency for the whole windows
-display_offset_ms = 200 # Offset in milliseconds to show the actual lyrics
 dont_cut_title = True
 #END TODO
 
@@ -285,10 +285,15 @@ def change_font_size():
         overlay_root.update()
         
 def change_display_offset_ms():
-    global display_offset_ms
+    global actualTrackLyrics
     value = open_integer_input("Enter offset:", -5000, 5000)
     if value:
-        display_offset_ms = value
+        lyr = SearchLyricsOnFolder(song_id)
+        if lyr['result']:
+            adjust_file(lyr['route'], value)
+            actualTrackLyrics = lyr['lyrics']
+            update_track_event.set()
+            display_lyrics(trackName, artistName, currentProgress, isPaused, item)
         overlay_root.update()
         
 def change_transparency():
@@ -400,7 +405,7 @@ def update_overlay_text():
     def find_nearest_time(currentProgress, timestampsInSeconds, parsed_lyrics):
         keys_list = list(parsed_lyrics.keys())
         # Find the verse that is closest in time before the current progress + offset
-        filtered_keys = list(filter(lambda x: timestampsInSeconds[keys_list.index(x)] <= currentProgress + (display_offset_ms / 1000), keys_list))
+        filtered_keys = list(filter(lambda x: timestampsInSeconds[keys_list.index(x)] <= currentProgress, keys_list))
 
         if not filtered_keys:
             verse = keys_list[0]  # If no previous verse, show the first one

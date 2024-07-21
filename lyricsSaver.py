@@ -26,12 +26,14 @@ def SearchLyricsOnFolder(sp_song_id):
         f = open(full_file_path, "r", encoding='utf-8')
         return {
             'lyrics': f.read(),
-            'result': True
+            'result': True,
+            'route': full_file_path
         }
     else:
         #song doesn't exists. We return nothing
         return {
             'lyrics': '',
-            'result': False
+            'result': False,
+            'route': ''
         }
     
