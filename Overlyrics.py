@@ -448,7 +448,7 @@ def update_gui_texts(verses_data):
             overlay_text_labels[i].config(text=verse, font=font_tuple)
     artist_song_label.config(text=artist_song_text)
     artist_song_label.tkraise()
-    overlay_root.minsize(math.ceil(len(artist_song_text) * 8.7), 20) if dont_cut_title else None
+    overlay_root.minsize(math.ceil(len(artist_song_text) * 9.6), 20) if dont_cut_title else None
     overlay_root.update()
 
 def process_queue():
