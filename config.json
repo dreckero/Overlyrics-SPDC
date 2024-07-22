@@ -1,11 +1,12 @@
 {
   "selected_theme": "LIGHT",
-  "main_color": "#d212d8",
+  "main_color": "#00FFFF",
   "theme_color": "#BBBBBB",
   "used_font": "Circular SP Vietnamese",
   "used_font_size": 22,
   "font_weight": "bold",
   "lines_per_lyrics": 3,
   "transparency": 1.0,
-  "show_player": true
+  "show_player": true,
+  "show_volume": false
 }

@@ -56,7 +56,8 @@ def createInitConfig():
                 "font_weight": "bold",
                 "lines_per_lyrics": 3,
                 "transparency": 1.0,
-                "show_player": True
+                "show_player": True,
+                "show_volume": False
             }
             json.dump(config, f, indent=2)
             f.close()

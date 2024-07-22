@@ -42,7 +42,7 @@ font_weight = getConfigValue("font_weight")
 lines_per_lyrics = getConfigValue("lines_per_lyrics") # Lines to show per lyrics (make sure that is always an odd number and not more than 15 or it'll be 3 as default)
 transparency = getConfigValue("transparency") # Default transparency for the whole windows
 show_player = getConfigValue("show_player")
-show_volume_variable = True
+show_volume = getConfigValue("show_volume")
 dont_cut_title = True
 
 light_color = "#BBBBBB" # Default selected color for light theme
@@ -66,7 +66,7 @@ PROGRESS_UPDATE_INTERVAL = 1  # seconds
 FONT_FOLDER = str(pathlib.Path(__file__).parent.resolve()) + "\\fonts"
 
 def create_overlay_text():
-    global main_color, selected_theme, lines_per_lyrics, font_tuple, button_canvas, canvas2, show_player, show_volume_variable
+    global main_color, selected_theme, lines_per_lyrics, font_tuple, button_canvas, canvas2, show_player, show_volume
     
     if lines_per_lyrics not in [1, 3, 5, 7, 9, 11, 13, 15]:
         lines_per_lyrics = 3
@@ -101,7 +101,7 @@ def create_overlay_text():
     
     slider = Scale(root, from_=100, to=0, orient='vertical', bg=theme_color, bd=0, showvalue=0, troughcolor=transparent_color, highlightbackground=theme_color, length=120)
     slider.bind("<ButtonRelease-1>", set_volume)
-    if show_volume_variable:
+    if show_volume:
         slider.pack(side='left', padx=14)
     
     for i in range(lines_per_lyrics):
@@ -222,7 +222,7 @@ def on_right_click(event):
     menu.add_command(label="Set lines per lyrics", command=change_lines_per_lyrics)
     menu.add_command(label="Switch to player/square", command=switch_player_square)
     menu.add_command(label="Change font", command=change_font)
-    menu.add_command(label="Show volume", command=show_volume)
+    menu.add_command(label="Show volume", command=show_hide_volume)
     menu.add_separator()
     menu.add_command(label="Close", command=close_application)
     
@@ -414,11 +414,11 @@ def font_change_confirm(win, value):
     win.destroy()
     overlay_root.update()
 
-def show_volume():
-    global volume_slider, show_volume_variable
-    if show_volume_variable == True:
+def show_hide_volume():
+    global volume_slider, show_volume
+    if show_volume == True:
         volume_slider.pack_forget()
-        show_volume_variable = False
+        show_volume = False
     else:
         for label in overlay_text_labels:
             label.pack_forget()
@@ -426,8 +426,9 @@ def show_volume():
         volume_slider.pack(side='left', padx=14)
         for label in overlay_text_labels:
             label.pack()
-        show_volume_variable = True
-
+        show_volume = True
+    configure("show_volume", show_volume)
+    
 def set_volume(event):
     global overlay_root, volume_slider
     value = volume_slider.get()
