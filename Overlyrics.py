@@ -213,7 +213,6 @@ def on_right_click(event):
     global selected_theme, main_color, overlay_root
     menu = tk.Menu(overlay_root, tearoff=0)
     
-    menu.add_cascade(label="Configurations")
     menu.add_command(label="Choose color", command=set_color)
     menu.add_command(label="Set lyrics delay", command=change_lyrics_delay)
     menu.add_command(label="Set transparency", command=change_transparency)
