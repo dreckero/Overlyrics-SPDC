@@ -5,6 +5,7 @@ import tkinter.font as font
 from tkinter import messagebox, OptionMenu
 from tkinter import simpledialog
 from tkinter import colorchooser
+from tkinter import Scale
 import time
 from datetime import datetime
 import re
@@ -41,14 +42,15 @@ font_weight = getConfigValue("font_weight")
 lines_per_lyrics = getConfigValue("lines_per_lyrics") # Lines to show per lyrics (make sure that is always an odd number and not more than 15 or it'll be 3 as default)
 transparency = getConfigValue("transparency") # Default transparency for the whole windows
 show_player = getConfigValue("show_player")
+show_volume_variable = True
 dont_cut_title = True
 
 light_color = "#BBBBBB" # Default selected color for light theme
 dark_color = "#404040" # Default selected color for dark theme
+transparent_color = "#010311"
 font_tuple = (used_font, used_font_size, font_weight)
 button_canvas = None
 canvas2 = None
-root = None
 #----------------
 update_track_info_condition = True # Use to stop the main loop
 drag_start_x = False
@@ -64,7 +66,7 @@ PROGRESS_UPDATE_INTERVAL = 1  # seconds
 FONT_FOLDER = str(pathlib.Path(__file__).parent.resolve()) + "\\fonts"
 
 def create_overlay_text():
-    global main_color, selected_theme, lines_per_lyrics, font_tuple, button_canvas, canvas2, show_player, root
+    global main_color, selected_theme, lines_per_lyrics, font_tuple, button_canvas, canvas2, show_player, show_volume_variable
     
     if lines_per_lyrics not in [1, 3, 5, 7, 9, 11, 13, 15]:
         lines_per_lyrics = 3
@@ -74,7 +76,7 @@ def create_overlay_text():
     root.attributes("-topmost", True)
     root.attributes("-alpha", transparency)
     root.overrideredirect(True)
-    root.configure(bg="#010311")
+    root.configure(bg=transparent_color)
     root.title("Overlyrics")
     root.wm_attributes('-transparentcolor', root['bg'])
 
@@ -84,42 +86,47 @@ def create_overlay_text():
     root.minsize(min_width, min_height)
 
     artist_song_font = font.Font(family=used_font, size="12", weight="normal")
-    artist_song_label = tk.Label(root, text="", fg=theme_color, bg="#010311", font=artist_song_font)
+    artist_song_label = tk.Label(root, text="", fg=theme_color, bg=transparent_color, font=artist_song_font)
     artist_song_label.place(x=50, y=0)
     # artist_song_label.pack(side='top')
     
     # Set an upper indentation based in the font size between the top left canvases and the lyrics
     custom_bar_font = font.Font(family="Arial", size="12", weight="normal")
-    upper_bar = tk.Label(root, text="", font=custom_bar_font, fg=theme_color, bg="#010311")
-    upper_bar.pack()
+    upper_bar = tk.Label(root, text="", font=custom_bar_font, fg=theme_color, bg=transparent_color)
+    upper_bar.pack(side='top')
     
     # Create labels dynamically based on lines_per_lyric
     text_labels = []
     middle_index = lines_per_lyrics // 2  # Calculate middle index
     
+    slider = Scale(root, from_=100, to=0, orient='vertical', bg=theme_color, bd=0, showvalue=0, troughcolor=transparent_color, highlightbackground=theme_color, length=120)
+    slider.bind("<ButtonRelease-1>", set_volume)
+    if show_volume_variable:
+        slider.pack(side='left', padx=14)
+    
     for i in range(lines_per_lyrics):
         fg_color = main_color if i == middle_index else theme_color
-        text_label = tk.Label(root, text="", fg=fg_color, bg="#010311", font=font_tuple)
+        text_label = tk.Label(root, text="", fg=fg_color, bg=transparent_color, font=font_tuple)
         #text_label.configure(font=font_tuple)
         text_label.pack()
         text_labels.append(text_label)
     
     if show_player:
         # Create canvas for buttons
-        init_player_canvas()
+        init_player_canvas(root)
     else:
-        init_generic_canvas()
+        init_generic_canvas(root)
 
-    root.bind("<ButtonPress-1>", lambda event: on_drag_start(event, root))
-    root.bind("<B1-Motion>", on_dragging)
-    root.bind("<ButtonRelease-1>", lambda event: on_window_move_end(event, root))
-    root.bind("<Button-3>", on_right_click)
+    # root.bind("<ButtonPress-1>", lambda event: on_drag_start(event, root))
+    # root.bind("<B1-Motion>", on_dragging)
+    # root.bind("<ButtonRelease-1>", lambda event: on_window_move_end(event, root))
+    # root.bind("<Button-3>", on_right_click)
     
     logger = logging.getLogger(__name__)
     logging.basicConfig(filename='D:\\temp\\Log.txt', encoding='utf-8', level=logging.DEBUG)
     logger.debug(FONT_FOLDER)
     
-    return root, text_labels, artist_song_label
+    return root, text_labels, artist_song_label, slider
 
 def get_fonts_from_folder():
     fonts = []
@@ -134,14 +141,16 @@ def get_fonts_from_folder():
 # -------------------------------------
 # Menu functions
 # -------------------------------------
-def init_generic_canvas():
-    global canvas2, root
+def init_generic_canvas(root):
+    global canvas2, overlay_root
     canvas2 = tk.Canvas(root, width=20, height=15, bg=theme_color, highlightthickness=0) #width=root.winfo_screenwidth()
+    bind_click_conditions(canvas2, root)
     canvas2.place(x=0, y=3)
 
-def init_player_canvas():
-    global button_canvas, root
-    button_canvas = tk.Canvas(root, width=46, height=20, bg="#010311", highlightthickness=0)
+def init_player_canvas(root):
+    global button_canvas
+    button_canvas = tk.Canvas(root, width=46, height=20, bg=transparent_color, highlightthickness=0)
+    bind_click_conditions(button_canvas, root)
     button_canvas.place(x=0, y=3)
 
     # Create left arrow button
@@ -162,6 +171,12 @@ def init_player_canvas():
     button_canvas.tag_bind(right_arrow, "<ButtonPress-1>", lambda event: on_drag_start(event, root))
     button_canvas.tag_bind(right_arrow, "<B1-Motion>", on_dragging)
     button_canvas.tag_bind(right_arrow, "<ButtonRelease-1>", lambda event: on_next_click(event, root, right_arrow))
+
+def bind_click_conditions(object, root):
+    object.bind("<ButtonPress-1>", lambda event: on_drag_start(event, root))
+    object.bind("<B1-Motion>", on_dragging)
+    object.bind("<ButtonRelease-1>", lambda event: on_window_move_end(event, root))
+    object.bind("<Button-3>", on_right_click)
 
 def on_back_click(event, root, left_arrow):
     if dragging is False:
@@ -206,7 +221,7 @@ def on_right_click(event):
     menu.add_command(label="Set lines per lyrics", command=change_lines_per_lyrics)
     menu.add_command(label="Switch to player/square", command=switch_player_square)
     menu.add_command(label="Change font", command=change_font)
-    menu.add_command(label="Set volume", command=set_volume)
+    menu.add_command(label="Show volume", command=show_volume)
     menu.add_separator()
     menu.add_command(label="Close", command=close_application)
     
@@ -333,22 +348,22 @@ def change_lines_per_lyrics():
     
     for i in range(lines_per_lyrics):
         fg_color = main_color if i == middle_index else theme_color
-        text_label = tk.Label(overlay_root, text="", fg=fg_color, bg="#010311")
+        text_label = tk.Label(overlay_root, text="", fg=fg_color, bg=transparent_color)
         text_label.pack()
         overlay_text_labels.append(text_label)
     
     overlay_root.update()
 
 def switch_player_square():
-    global canvas2, button_canvas, show_player
+    global canvas2, button_canvas, show_player, overlay_root
     
     if show_player:
         button_canvas.place_forget()
-        init_generic_canvas()
+        init_generic_canvas(overlay_root)
         show_player = False
     else:
         canvas2.place_forget()
-        init_player_canvas()
+        init_player_canvas(overlay_root)
         show_player = True
     configure("show_player", show_player)
     
@@ -356,7 +371,7 @@ def switch_player_square():
 
 #open windows with font selector
 def change_font():
-    global root
+    global overlay_root
     win = tk.Toplevel()
     win.wm_title("Change Font")
 
@@ -384,7 +399,7 @@ def change_font():
     overlay_root.update()
 
 def font_change_confirm(win, value):
-    global used_font, font_tuple, used_font_size, font_weight, artist_song_label
+    global used_font, font_tuple, used_font_size, font_weight, artist_song_label, overlay_root
     print(value)
     font_file = ttLib.TTFont(FONT_FOLDER + "\\" + value)
     fontFamilyName = font_file['name'].getDebugName(4)
@@ -396,14 +411,33 @@ def font_change_confirm(win, value):
     #create_overlay_text()
     win.destroy()
     overlay_root.update()
-    
-def set_volume():
-    value = open_integer_input("Enter volume:", 0, 100)
+
+def show_volume():
+    global volume_slider, show_volume_variable
+    if show_volume_variable == True:
+        volume_slider.pack_forget()
+        show_volume_variable = False
+    else:
+        for label in overlay_text_labels:
+            label.pack_forget()
+        
+        volume_slider.pack(side='left', padx=14)
+        for label in overlay_text_labels:
+            label.pack()
+        show_volume_variable = True
+
+def set_volume(event):
+    global overlay_root, volume_slider
+    value = volume_slider.get()
     if value:
+        set_refresh_volume(False)
         volume_playback(value)
+        overlay_root.update()
+        time.sleep(PROGRESS_UPDATE_INTERVAL *2)
+        set_refresh_volume(True)
     
 def close_application():
-    global update_track_info_condition
+    global update_track_info_condition, overlay_root
     update_track_info_condition = False
     overlay_root.quit()
     update_thread.join()  # Wait for the update_track_info thread to finish
@@ -459,20 +493,22 @@ def update_overlay_text():
         lyrics_verse_event.set()
 
 def update_gui_texts(verses_data):
-    global overlay_text_labels, artist_song_label
+    global overlay_text_labels, artist_song_label, overlay_root
     
     verses, actual_index = verses_data
     print(f"Updating GUI: {verses}") if VERBOSE_MODE else None
     for i, verse in enumerate(verses):
         if i < len(overlay_text_labels):
             overlay_text_labels[i].config(text=verse, font=font_tuple)
+            overlay_text_labels[0].config(text="No lyrics found.", font=font_tuple) if actual_index == -1 else None
     artist_song_label.config(text=artist_song_text)
     artist_song_label.tkraise()
-    overlay_root.minsize(math.ceil(len(artist_song_text) * 9.6), 20) if dont_cut_title else None
+    overlay_root.minsize(math.ceil(len(artist_song_text) * 10.3), 20) if dont_cut_title else None
     overlay_root.update()
 
 def process_queue():
     try:
+        global overlay_root
         while True:
             verses = update_queue.get_nowait()
             update_gui_texts(verses)
@@ -482,7 +518,7 @@ def process_queue():
 
 
 def getCurrentTrackInfo(update_from_spotify):
-    global trackName, artistName, currentProgress, isPaused, item, song_id, artist_song_text
+    global trackName, artistName, currentProgress, isPaused, item, song_id, artist_song_text, volume_slider
     try:
         if update_from_spotify:
             current_track = get_currently_playing()  # Get the information of the music being listened to, through the API
@@ -498,6 +534,8 @@ def getCurrentTrackInfo(update_from_spotify):
             progress_ms = current_track['progress_ms']
             song_id = current_track['item']['id']
             artist_song_text = artist + " - " + track_name
+            # volume_percent = current_track['device']['volume_percent']
+            volume_slider.set(get_volume_percent())
             
             # Convert progress_ms to minutes and seconds
             progress_sec = progress_ms // 1000
@@ -715,7 +753,7 @@ timestampsInSeconds = []
 load_fonts_from_folder()
 init()
 
-overlay_root, overlay_text_labels, artist_song_label = create_overlay_text()
+overlay_root, overlay_text_labels, artist_song_label, volume_slider = create_overlay_text()
 overlay_root.update()
 
 update_event = threading.Event() # Create an event to flag the variables update

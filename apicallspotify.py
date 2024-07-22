@@ -11,7 +11,8 @@ import tkinter as tk
 from tkinter import simpledialog
 
 # Global variables
-client_id = 'b20f0802c77540a0963048cc394ec998'
+client_id = 'b20f0802c77540a0963048cc394ec998' # Arzatar
+# client_id = 'b20f0802c77540a0963048cc394ec998' # Dreckero
 redirect_uri = 'http://localhost:8080/callback'
 scope ='user-read-playback-state user-read-email user-read-private user-modify-playback-state'
 token_url = 'https://accounts.spotify.com/api/token'
@@ -160,7 +161,7 @@ def get_currently_playing():
         
 def get_devices():
     try:
-        global device_id
+        global device_id, volume_percent
         headers = {
             'Authorization': f'Bearer {access_token}'
         }
@@ -168,6 +169,7 @@ def get_devices():
         for d in response_data.get('devices'):
             if d.get('is_active'):
                 device_id = d.get('id')
+                volume_percent = d.get('volume_percent') if refresh_volume else None
         return response_data
     except Exception as e:
         print(f'Exception in get_devices:\n{e}') if VERBOSE_MODE else None
@@ -300,6 +302,18 @@ def get_progress_ms():
     global progress_ms
     return progress_ms
 
+def get_volume_percent():
+    global volume_percent
+    return volume_percent
+
+def set_volume_percent(percent):
+    global volume_percent
+    volume_percent = percent
+    
+def set_refresh_volume(value):
+    global refresh_volume
+    refresh_volume = value
+    
 def ask_sp_dc():
     global sp_dc
     # Open a Tkinter window to ask for the sp_dc cookie
@@ -374,6 +388,8 @@ authorization_code = ''
 token_response = ''
 device_id = ''
 progress_ms = 0
+volume_percent = 0
+refresh_volume = True
 session = None
 
 # init()
