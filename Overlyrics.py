@@ -213,11 +213,12 @@ def on_right_click(event):
     global selected_theme, main_color, overlay_root
     menu = tk.Menu(overlay_root, tearoff=0)
     
+    menu.add_cascade(label="Configurations")
     menu.add_command(label="Choose color", command=set_color)
+    menu.add_command(label="Set lyrics delay", command=change_lyrics_delay)
+    menu.add_command(label="Set transparency", command=change_transparency)
     menu.add_command(label="Switch theme", command=switch_theme)
     menu.add_command(label="Set font size", command=change_font_size)
-    menu.add_command(label="Set lyrics offset", command=change_display_offset_ms)
-    menu.add_command(label="Set transparency", command=change_transparency)
     menu.add_command(label="Set lines per lyrics", command=change_lines_per_lyrics)
     menu.add_command(label="Switch to player/square", command=switch_player_square)
     menu.add_command(label="Change font", command=change_font)
@@ -299,7 +300,7 @@ def open_float_input(text, min, max):
     return value
 
 def change_font_size():
-    global used_font_size, font_tuple
+    global used_font_size, font_tuple, overlay_root
     value = open_integer_input("Enter font size:", 8, 72)
     if value:
         used_font_size = value
@@ -307,8 +308,8 @@ def change_font_size():
         font_tuple = (used_font, used_font_size, font_weight)
         overlay_root.update()
         
-def change_display_offset_ms():
-    global actualTrackLyrics
+def change_lyrics_delay():
+    global actualTrackLyrics, overlay_root
     value = open_integer_input("Enter offset:", -5000, 5000)
     if value:
         lyr = SearchLyricsOnFolder(song_id)
@@ -316,7 +317,8 @@ def change_display_offset_ms():
             adjust_file(lyr['route'], value)
             actualTrackLyrics = lyr['lyrics']
             update_track_event.set()
-            display_lyrics(trackName, artistName, currentProgress, isPaused, item)
+            parsing_in_progress_event.set()
+            # display_lyrics(trackName, artistName, currentProgress, isPaused, item)
         overlay_root.update()
         
 def change_transparency():
