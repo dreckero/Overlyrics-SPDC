@@ -64,6 +64,7 @@ PERIOD_TO_UPDATE_TRACK_INFO = 0.1  # Updates the displaying verses every PERIOD_
 PROGRESS_UPDATE_PERIOD = 0.1  # seconds
 PROGRESS_UPDATE_INTERVAL = 1  # seconds
 FONT_FOLDER = str(pathlib.Path(__file__).parent.resolve()) + "\\fonts"
+USE_LOG = False
 
 def create_overlay_text():
     global main_color, selected_theme, lines_per_lyrics, font_tuple, button_canvas, canvas2, show_player, show_volume
@@ -122,9 +123,10 @@ def create_overlay_text():
     # root.bind("<ButtonRelease-1>", lambda event: on_window_move_end(event, root))
     # root.bind("<Button-3>", on_right_click)
     
-    logger = logging.getLogger(__name__)
-    logging.basicConfig(filename='D:\\temp\\Log.txt', encoding='utf-8', level=logging.DEBUG)
-    logger.debug(FONT_FOLDER)
+    if USE_LOG:
+        logger = logging.getLogger(__name__)
+        logging.basicConfig(filename='D:\\temp\\Log.txt', encoding='utf-8', level=logging.DEBUG)
+        logger.debug(FONT_FOLDER)
     
     return root, text_labels, artist_song_label, slider
 
